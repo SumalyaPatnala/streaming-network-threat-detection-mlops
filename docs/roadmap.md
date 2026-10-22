@@ -11,7 +11,7 @@ authorized by this plan.
 |---|---|---|
 | Training and evaluation | Implemented; test evaluation gated | Milestone 1 report, readiness report, governance tests |
 | FastAPI and Docker | Implemented and locally verified | Milestone 2 report; real saved-model container smoke |
-| CI/CD | **Implemented locally; hosted verification pending** | CI and manual release workflows exist; no hosted run or image publication has been verified |
+| CI/CD | **Hosted CI verified; manual release unexecuted** | Main-push CI succeeded; GHCR publication/provenance intentionally not run |
 | IaC/Terraform | Planned | No Terraform configuration/state or cloud resources |
 | Linux operations | Basic container controls verified locally | Non-root, read-only mount, health check, local cgroup limits; no production ops |
 | Kubernetes | Future, not implemented | No manifests, cluster, scheduling, or autoscaler validation |
@@ -21,42 +21,49 @@ authorized by this plan.
 
 ## Ordered milestones
 
-### M3 — CI/CD and artifact integrity (implemented locally; hosted verification pending)
+### M3 — CI/CD and artifact integrity (hosted CI verified; manual release unexecuted)
 
 Keep this milestone limited to repository automation and reproducible build/release
-evidence. The workflows now implement these gates, but hosted runs and a manually
-authorized first release remain pending. Do not add Terraform, Kubernetes, streaming,
-or cloud deployment to M3.
+evidence. The CI workflow passed on the first `main` push. The release workflow
+exists but has deliberately not been triggered; no image was published. See the
+[Milestone 3 report](../reports/milestone-3-report.md) for the run evidence and
+unverified release limitations. Do not add Terraform, Kubernetes, streaming, or
+cloud deployment to M3.
 
 **Scope**
 
-- Add CI for supported Python versions, lockfile checks, tests, Ruff, syntax/type
-  checks if selected, Docker build, and image/config checks.
-- Add dependency and container vulnerability scanning plus SBOM generation and
-  retention. Pin action/tool versions; define severity policy and exception expiry.
-- Build reproducibly from `uv.lock` and digest-pinned base; attach source revision,
-  build provenance, image digest, dependency lock, and schema version to the build.
-- Validate a mounted trusted artifact in non-publishing CI without training or
-  scoring the held-out test set. CI must never run final test evaluation.
-- Separate pull-request validation from release: no registry push/deploy until a
-  protected, approved release path is designed.
+- CI on a clean hosted runner checks Python 3.12, the committed lock, Ruff, tests,
+  compilation, schema/context policy, Docker build, non-root configuration, and
+  the configured vulnerability/secret scan. The `main` push run passed; a PR event
+  and branch-protection enforcement have not been exercised.
+- CI never requires private dataset/model/MLflow files, trains models, or evaluates
+  the final test set. It does not run a real-model inference test.
+- CI and manual release actions are pinned to full commit SHAs. The manual-only
+  release workflow rechecks gates and is designed to capture a digest and attach
+  GitHub build provenance; this path has not been executed or verified.
+- SBOM generation/retention, published-image evidence, and GHCR permission/
+  attestation verification remain follow-up work. No registry push or deploy
+  happens on ordinary pushes.
 
 **Acceptance criteria**
 
-1. Pull-request CI runs tests, Ruff, lock validation, Docker build, and secret scan
-   from a clean checkout; all required checks are branch-protection eligible.
-2. CI proves the default training path does not touch `indices["test"]`, create test
-   metrics, or select a candidate using test data.
-3. Build from the same commit and lockfile records its image digest and SBOM; image
-   provenance identifies the source revision and pinned base digest.
-4. Secret/dependency/image findings fail the configured severity threshold; any
-   exception has a named owner, rationale, compensating control, and expiry date.
-5. A failed test/build/scan blocks release. CI does not apply infrastructure or
-   publish/deploy without explicit approval.
+1. A GitHub-hosted `main` push run passes lock, lint, test, compile, schema,
+   context, image, non-root/content, and Trivy checks. This is verified by the
+   run linked in the Milestone 3 report. Pull-request trigger execution and
+   branch-protection enforcement remain unverified.
+2. CI operates without dataset/model/MLflow/cloud/Kubernetes dependencies, and no
+   training or final-test scoring occurs in the job.
+3. The manual release path is implemented with version validation, image scanning,
+   immutable digest capture, and provenance attestation. It is intentionally
+   unexecuted; GHCR permissions, publication, and attestation verification remain
+   pending.
+4. SBOM generation and retention are deferred and are not claimed as delivered.
+5. No ordinary push publishes an image, deploys infrastructure, or runs the
+   manual release workflow.
 
-**Portfolio evidence:** workflow files, passing CI run URL/log, SBOM, image digest,
-provenance attestation, scan summary, reviewed CI design record, and a short
-reproduction guide. Clearly mark any CI permission not exercised.
+**Portfolio evidence:** workflow files, passing CI run URL, local reproduction
+commands, and scan step outcome. No SBOM, published image digest, or release
+attestation exists yet. Clearly mark unexercised permissions and triggers.
 
 ### M4 — Telemetry contract and generalization evidence
 

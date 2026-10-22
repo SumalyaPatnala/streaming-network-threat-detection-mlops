@@ -11,7 +11,7 @@ holdout**. Do not use it for further model selection or tuning.
 |---|---|
 | Reproducible training, validation, MLflow, input contract | Implemented and locally verified |
 | FastAPI inference and non-root Docker image | Implemented and locally verified with a saved model |
-| GitHub Actions CI and manually triggered GHCR release | Implemented; local verification recorded in the [Milestone 3 report](reports/milestone-3-report.md); hosted runs pending |
+| GitHub Actions CI and manually triggered GHCR release | CI passed on GitHub; manual GHCR release is implemented but intentionally unexecuted. See the [Milestone 3 report](reports/milestone-3-report.md) |
 | Terraform, remote state, environment isolation | Planned; no infrastructure provisioned |
 | Kubernetes worker scheduling/scaling | Future plan; not implemented |
 | Streaming ingestion, drift monitoring, production observability | Future plan; not implemented |
@@ -51,8 +51,10 @@ GitHub Actions. The JUnit XML report is retained as a short-lived workflow
 artifact. Tests use the existing mocked model runtime and do not need the
 local TON_IoT files, MLflow database, or saved model.
 
-Open the repository's **Actions** tab and select **CI** to review a run. A green
-hosted run is required before merging; local verification is not a substitute.
+The first hosted push run passed on commit `e8ef1c93adb7bb94b504de346e3f81e9242d56fe`:
+[view GitHub Actions CI run](https://github.com/SumalyaPatnala/streaming-network-threat-detection-mlops/actions/runs/39811616149).
+Open the repository's **Actions** tab and select **CI** to review future runs;
+local verification is not a substitute for hosted checks.
 The existing real-model inference smoke test remains a separate local procedure
 in the [Milestone 2 report](reports/milestone-2-report.md).
 

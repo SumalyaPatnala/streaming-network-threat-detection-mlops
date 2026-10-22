@@ -3,9 +3,15 @@
 ## Outcome and status
 
 Implemented pull-request/main-push CI and a manual-only GHCR release workflow.
-The workflows are locally inspected and validated, and the API Docker image was
-built locally. **GitHub-hosted workflow execution is pending** because no commit
-or push was authorized. No GHCR image was published.
+The first GitHub-hosted CI run passed on `main`. The manual GHCR release workflow
+is implemented but was not triggered; no image was published. CI verification is
+complete for the hosted `push` event. A pull-request event and the release
+publication/provenance path remain unverified.
+
+- **Run:** [CI run 39811616149](https://github.com/SumalyaPatnala/streaming-network-threat-detection-mlops/actions/runs/39811616149)
+- **Commit:** `e8ef1c93adb7bb94b504de346e3f81e9242d56fe`
+- **Trigger:** push to `main`
+- **Conclusion:** success
 
 The ordinary workflow uses mocked model inference tests and does not require
 TON_IoT data, a local MLflow database, a saved model, cloud credentials, or a
@@ -33,8 +39,8 @@ Kubernetes cluster. No model training or final-test evaluation was run.
 - Modified `README.md`: workflow triggers, result viewing, local reproduction,
   manual release instructions, version/digest usage, provenance verification,
   and digest-based rollback.
-- Modified `docs/architecture.md` and `docs/roadmap.md` to show M3 workflows as
-  implemented locally while hosted verification and publication remain pending.
+- Modified `docs/architecture.md` and `docs/roadmap.md` to record hosted CI
+  success and distinguish it from the unexecuted release path.
 
 No dependency manifest or lockfile changes were needed.
 
@@ -57,14 +63,37 @@ No dependency manifest or lockfile changes were needed.
 | Workflow action reference check | All declared actions use 40-character commit SHAs |
 | `git diff --check` | **Passed** |
 | Private path ignore checks | `data/raw/`, `mlflow.db`, `models/`, and `.env` remain ignored |
+| Common secret/cache/temp ignore checks | `.aws/`, `.ssh/`, credential/key/certificate files, `.venv`, pytest/Ruff/mypy caches, and temp/log files all match Git ignore rules |
 | Docker build context observation | BuildKit transferred **835 bytes** of context; `.dockerignore` loaded as 264 bytes |
 | `docker build --tag streaming-threat-api:milestone-3-ci .` | **Passed**, using cached base matching the Dockerfile's pinned digest |
 | Built image identity/content check | **Passed**; configured user `app`, runtime UID 999, and no checked data/model/MLflow/secret paths |
 | Local `docker build --pull` | The first attempt stalled during remote registry metadata resolution and was stopped. The successful build used the locally cached image whose `RepoDigests` matched the pinned Python base digest. |
 | actionlint | **Not installed** in the environment |
 | Local image vulnerability scan | **Not completed**; Trivy/Grype are not installed. Docker Scout 1.16.1 was available, but its local-image critical/high scan did not return within seven minutes and was stopped. The pinned Trivy scan remains configured in CI and release workflows. |
-| GitHub-hosted CI/release | **Pending**; requires an authorized push to exercise CI |
+| GitHub-hosted CI | **Passed** on push to `main`; run `39811616149`, commit `e8ef1c93adb7bb94b504de346e3f81e9242d56fe` |
 | Image publication/provenance verification | **Not run**; release was not triggered and no image was published |
+
+## GitHub-hosted verification
+
+The GitHub-hosted run
+[39811616149](https://github.com/SumalyaPatnala/streaming-network-threat-detection-mlops/actions/runs/39811616149)
+completed successfully on `main` for commit
+`e8ef1c93adb7bb94b504de346e3f81e9242d56fe` (push event, 2026-10-22
+16:09:57–16:11:32 UTC). The `Quality, image, and security checks` job and every
+reported step concluded `success`, including dependency installation, Ruff, pytest,
+JUnit report upload, compilation, schema/context checks, Docker build, non-root and
+private-content checks, and Trivy vulnerability/secret scanning.
+
+The public Actions API exposed per-step conclusions but did not provide the job
+logs (`403 Must have admin rights to Repository`), so the hosted test count is not
+independently recorded here. The local run on this same source passed **34 tests**.
+Trivy's configured scan passed; it ignores unfixed vulnerabilities and gates on
+CRITICAL/HIGH vulnerabilities with fixes plus secret findings. This is not a claim
+that the image has zero vulnerabilities.
+
+The `push` trigger is verified; a pull-request event has not been exercised.
+The manual release workflow was not triggered, and GHCR publication, package
+permissions, registry digest capture, and provenance attestation were not verified.
 
 ## Resolved during implementation
 
@@ -75,10 +104,10 @@ No dependency manifest or lockfile changes were needed.
 - The first `docker build --pull` did not finish registry metadata resolution
   locally. The required Docker image build then passed without `--pull` using
   the already cached, digest-matching base. Hosted CI still uses `--pull`.
-- `git ls-remote` returned no remote refs; the public repository API reports
-  `main` as the default branch. The local GitHub CLI is not authenticated.
-  Hosted verification will therefore require successful authentication and
-  creation/push of the first `main` commit, if no remote branch has appeared.
+- Before the first push, `git ls-remote` returned no remote refs while the public
+  repository API reported `main` as the default branch. The initial commit created
+  `main` successfully. `gh auth status` is not authenticated, but the normal Git
+  push succeeded through the configured macOS credential helper.
 - A local macOS Bash version probe did not support Bash's lowercase parameter
   expansion. The release workflow uses portable `tr` for lowercase GHCR paths;
   the resulting path and stable-version validation were checked locally.
@@ -106,18 +135,21 @@ No dependency manifest or lockfile changes were needed.
 
 ## Security limitations and remaining work
 
-- Workflow syntax and action pins were checked locally, but GitHub's workflow
-  parser, hosted permissions, package access, vulnerability database behavior,
-  and attestation publication remain unverified until hosted execution.
+- The GitHub-hosted push run validated the CI workflow parser, its read-only
+  permissions, dependency installation, image build, and configured Trivy scan.
+  The pull-request trigger remains unexercised.
 - `actionlint` was unavailable. Ruby YAML parsing is syntax evidence, not a
   substitute for GitHub-hosted validation or actionlint.
-- Trivy is configured to ignore unfixed vulnerabilities and fail on CRITICAL/HIGH
-  OS/library findings with available fixes, and to scan secrets. It has not run
-  locally; a hosted scan can block CI or release until findings are remediated.
+- The hosted Trivy scan passed with the workflow's policy: ignore unfixed
+  vulnerabilities, fail on CRITICAL/HIGH OS/library findings with available
+  fixes, and scan secrets. It is not evidence of zero vulnerabilities.
 - Release requires the repository's `GITHUB_TOKEN` to have GHCR package write
-  access and for the package/repository permission relationship to allow it.
+  access and for the package/repository permission relationship to allow it; this
+  was not tested because publication was not run.
 - The Docker base is digest-pinned, while Python packages are pinned through
-  `uv.lock`; no SBOM/signature policy or automated deployment is implemented.
+  `uv.lock`; SBOM generation/retention and automated deployment are not implemented.
+- GitHub build provenance is configured in the release workflow but no attestation
+  has been generated or verified.
 - No live-model smoke test runs in CI by design. The separately documented
   Milestone 2 local real-artifact procedure remains the only such verification.
 - No model accuracy/generalization claim is made. The local service remains
@@ -125,8 +157,7 @@ No dependency manifest or lockfile changes were needed.
 
 ## Commit/push decision
 
-**NO-GO for committing or pushing in this session** because approval was not
-given. Local code and image checks passed, but GitHub-hosted CI has not yet run.
-After explicit approval, the first push should be treated as a CI verification
-event; do not trigger the release workflow or publish an image until the hosted
-CI run and package permissions have been reviewed.
+**GO for the initial commit and push:** explicit approval was received. Commit
+`e8ef1c93adb7bb94b504de346e3f81e9242d56fe` was pushed to `origin/main`, and its
+hosted CI run passed. This completes hosted CI verification for the `main` push
+event. No GHCR release or image publication was performed.

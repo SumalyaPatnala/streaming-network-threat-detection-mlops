@@ -36,8 +36,10 @@ flowchart LR
 - **Not present:** authentication, authorization, tenant identity, live ingestion,
   drift monitoring, external metrics/logging, Terraform, Kubernetes,
   incident-response automation, or production reliability evidence. GitHub Actions
-  CI and a manually triggered GHCR release workflow are implemented locally; hosted
-  execution, image publication, and provenance verification remain pending.
+  CI passed on the `main` push commit recorded in the
+  [Milestone 3 report](../reports/milestone-3-report.md). The manually triggered
+  GHCR workflow is implemented but has not been run; image publication and
+  provenance verification remain pending.
 
 See the [Milestone 2 report](../reports/milestone-2-report.md) for actual local
 verification results. Docker image operation is currently single-process CPU
