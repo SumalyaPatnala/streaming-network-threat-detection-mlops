@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://streaming-network-threat-detection-mlops/schemas/network-flow-model-input-v1.schema.json",
+  "title": "TON_IoT Network Flow Model Input",
+  "description": "Versioned feature contract for the current binary network-flow classifier. Null values represent unavailable telemetry and are passed to the fitted preprocessing pipeline for imputation.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "features"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "event_id": {
+      "type": "string",
+      "description": "Optional source event or flow identifier for tracing; never a model feature."
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Optional UTC observation time for serving and downstream ordering; never a model feature."
+    },
+    "features": {
+      "type": "object",
+      "required": [
+        "dst_port",
+        "proto",
+        "service",
+        "duration",
+        "src_bytes",
+        "dst_bytes",
+        "conn_state",
+        "missed_bytes",
+        "src_pkts",
+        "src_ip_bytes",
+        "dst_pkts",
+        "dst_ip_bytes",
+        "dns_qclass",
+        "dns_qtype",
+        "dns_rcode",
+        "dns_AA",
+        "dns_RD",
+        "dns_RA",
+        "dns_rejected",
+        "ssl_version",
+        "ssl_cipher",
+        "ssl_resumed",
+        "ssl_established",
+        "http_trans_depth",
+        "http_method",
+        "http_version",
+        "http_request_body_len",
+        "http_response_body_len",
+        "http_status_code",
+        "weird_notice"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "dst_port": {
+          "type": ["integer", "null"],
+          "description": "Destination port; Zeek conn.log id.resp_p."
+        },
+        "proto": {
+          "type": ["string", "null"],
+          "description": "Transport protocol; Zeek conn.log proto."
+        },
+        "service": {
+          "type": ["string", "null"],
+          "description": "Detected application service; Zeek conn.log service. Preserve absence as null."
+        },
+        "duration": {
+          "type": ["number", "null"],
+          "description": "Flow duration; Zeek conn.log duration."
+        },
+        "src_bytes": {
+          "type": ["integer", "null"],
+          "description": "Originator payload bytes; Zeek conn.log orig_bytes."
+        },
+        "dst_bytes": {
+          "type": ["integer", "null"],
+          "description": "Responder payload bytes; Zeek conn.log resp_bytes."
+        },
+        "conn_state": {
+          "type": ["string", "null"],
+          "description": "Connection state; Zeek conn.log conn_state."
+        },
+        "missed_bytes": {
+          "type": ["integer", "null"],
+          "description": "Content bytes missed by analyzers; Zeek conn.log missed_bytes."
+        },
+        "src_pkts": {
+          "type": ["integer", "null"],
+          "description": "Originator packet count; Zeek conn.log orig_pkts."
+        },
+        "src_ip_bytes": {
+          "type": ["integer", "null"],
+          "description": "Originator IP-layer bytes; Zeek conn.log orig_ip_bytes."
+        },
+        "dst_pkts": {
+          "type": ["integer", "null"],
+          "description": "Responder packet count; Zeek conn.log resp_pkts."
+        },
+        "dst_ip_bytes": {
+          "type": ["integer", "null"],
+          "description": "Responder IP-layer bytes; Zeek conn.log resp_ip_bytes."
+        },
+        "dns_qclass": {
+          "type": ["integer", "null"],
+          "description": "DNS query class; enrich from Zeek dns.log by connection uid."
+        },
+        "dns_qtype": {
+          "type": ["integer", "null"],
+          "description": "DNS query type; enrich from Zeek dns.log by connection uid."
+        },
+        "dns_rcode": {
+          "type": ["integer", "null"],
+          "description": "DNS response code; enrich from Zeek dns.log by connection uid."
+        },
+        "dns_AA": {
+          "type": ["string", "null"],
+          "description": "DNS authoritative-answer flag in the dataset's T/F representation; enrich from dns.log."
+        },
+        "dns_RD": {
+          "type": ["string", "null"],
+          "description": "DNS recursion-desired flag in the dataset's T/F representation; enrich from dns.log."
+        },
+        "dns_RA": {
+          "type": ["string", "null"],
+          "description": "DNS recursion-available flag in the dataset's T/F representation; enrich from dns.log."
+        },
+        "dns_rejected": {
+          "type": ["string", "null"],
+          "description": "DNS rejection flag in the dataset's T/F representation; enrich from dns.log."
+        },
+        "ssl_version": {
+          "type": ["string", "null"],
+          "description": "TLS protocol version; enrich from Zeek ssl.log version."
+        },
+        "ssl_cipher": {
+          "type": ["string", "null"],
+          "description": "Negotiated TLS cipher; enrich from Zeek ssl.log cipher."
+        },
+        "ssl_resumed": {
+          "type": ["string", "null"],
+          "description": "TLS session-resumption flag in the dataset's T/F representation; enrich from ssl.log."
+        },
+        "ssl_established": {
+          "type": ["string", "null"],
+          "description": "TLS-established flag in the dataset's T/F representation; enrich from ssl.log."
+        },
+        "http_trans_depth": {
+          "type": ["number", "null"],
+          "description": "HTTP transaction depth; enrich from Zeek http.log trans_depth."
+        },
+        "http_method": {
+          "type": ["string", "null"],
+          "description": "HTTP request method; enrich from Zeek http.log method."
+        },
+        "http_version": {
+          "type": ["number", "null"],
+          "description": "HTTP version represented numerically as in the training CSV; parse Zeek http.log version consistently."
+        },
+        "http_request_body_len": {
+          "type": ["integer", "null"],
+          "description": "HTTP request body bytes; enrich from Zeek http.log request_body_len."
+        },
+        "http_response_body_len": {
+          "type": ["integer", "null"],
+          "description": "HTTP response body bytes; enrich from Zeek http.log response_body_len."
+        },
+        "http_status_code": {
+          "type": ["integer", "null"],
+          "description": "HTTP response status code; enrich from Zeek http.log status_code."
+        },
+        "weird_notice": {
+          "type": ["string", "null"],
+          "description": "Zeek weird-event notice flag in the dataset's T/F representation; enrich from weird.log and confirm source semantics for the deployed Zeek version."
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,52 @@
+
+# Local datasets
+data/raw/
+data/processed/
+
+# Python environment
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+.tox/
+.cache/
+
+# ML artifacts
+mlruns/
+mlartifacts/
+mlflow.db
+mlflow.db-shm
+mlflow.db-wal
+models/
+
+# Test/build outputs
+.pytest_cache/
+build/
+dist/
+*.egg-info/
+
+# Secrets
+.env
+.env.*
+.aws/
+.ssh/
+secrets/
+*.crt
+*.p12
+*.pfx
+*.pem
+*.key
+*.secret
+*.token
+credentials*
+*credential*
+
+# Temporary and local operating-system files
+*.tmp
+*.swp
+*.log
+.DS_Store

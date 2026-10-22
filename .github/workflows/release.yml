@@ -1,0 +1,238 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Stable semantic version without a leading v (for example 1.2.3)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+  attestations: write
+  id-token: write
+
+concurrency:
+  group: release-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  build-scan-publish:
+    name: Recheck, scan, and publish release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+
+      - name: Cache uv downloads
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-py312-${{ hashFiles('pyproject.toml', 'uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-py312-
+
+      - name: Validate release version
+        id: release
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+            echo "Releases must be run from the protected main branch." >&2
+            exit 1
+          fi
+          if [[ ! "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "Version must be stable semantic MAJOR.MINOR.PATCH without a leading v." >&2
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          image_owner_path="$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          echo "image=ghcr.io/$image_owner_path" >> "$GITHUB_OUTPUT"
+
+      - name: Install pinned uv
+        run: python -m pip install --disable-pip-version-check uv==0.13.4
+
+      - name: Recheck lockfile
+        run: uv lock --check
+
+      - name: Install locked project and test dependencies
+        run: uv sync --locked --group dev --no-install-package nvidia-nccl-cu13
+
+      - name: Recheck lint
+        run: uv run --locked --no-sync ruff check src scripts tests
+
+      - name: Recheck tests
+        run: uv run --locked --no-sync pytest -q --junitxml=pytest-results.xml
+
+      - name: Recheck compilation and schema
+        run: |
+          uv run --locked --no-sync python -m compileall -q src scripts tests
+          uv run --locked --no-sync python -m json.tool schemas/network-flow-model-input-v1.schema.json > /dev/null
+          uv run --locked --no-sync pytest -q tests/test_model_input_schema.py
+
+      - name: Recheck Docker context policy
+        run: uv run --locked --no-sync python scripts/validate_docker_context.py
+
+      - name: Build release image
+        env:
+          IMAGE: ${{ steps.release.outputs.image }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: docker build --pull --tag "$IMAGE:$TAG" .
+
+      - name: Verify local release image
+        env:
+          IMAGE: ${{ steps.release.outputs.image }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          test "$(docker image inspect --format '{{.Config.User}}' "$IMAGE:$TAG")" = "app"
+          docker run --rm --entrypoint python "$IMAGE:$TAG" -c '
+          import os
+          from pathlib import Path
+          assert os.getuid() != 0, "image process must not run as root"
+          forbidden = ("/app/data", "/app/models", "/app/mlruns", "/app/mlartifacts",
+                       "/app/mlflow.db", "/app/.env", "/models")
+          present = [path for path in forbidden if Path(path).exists()]
+          private_names = ("mlmodel", "model.pkl", "mlflow.db", "conda.yaml")
+          suspicious = [
+              path.as_posix() for path in Path("/app").rglob("*")
+              if path.name.lower() in private_names
+              or path.name.lower().startswith(".env")
+              or path.name.lower().endswith((".pem", ".key", ".crt", ".p12", ".pfx", ".token", ".secret"))
+              or "credential" in path.name.lower()
+              or "secret" in path.name.lower()
+          ]
+          assert not present and not suspicious, (present, suspicious)
+          '
+
+      - name: Scan release image before publication
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: ${{ steps.release.outputs.image }}:${{ steps.release.outputs.tag }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+          scanners: vuln,secret
+
+      - name: Authenticate to GHCR
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$GITHUB_TOKEN" | docker login ghcr.io \
+            --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Refuse an existing release tag
+        env:
+          IMAGE: ${{ steps.release.outputs.image }}
+          TAG: ${{ steps.release.outputs.tag }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          image_path="${IMAGE#ghcr.io/}"
+          registry_token="$(
+            curl --fail --silent --show-error \
+              --user "$GITHUB_ACTOR:$GITHUB_TOKEN" \
+              "https://ghcr.io/token?scope=repository:$image_path:pull" \
+              | jq -er '.token'
+          )"
+          status="$(
+            curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+              --header "Authorization: Bearer $registry_token" \
+              --header 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json' \
+              "https://ghcr.io/v2/$image_path/manifests/$TAG"
+          )"
+          if [[ "$status" == "200" ]]; then
+            echo "Refusing to overwrite existing image tag $IMAGE:$TAG" >&2
+            exit 1
+          fi
+          if [[ "$status" != "404" ]]; then
+            echo "Unable to safely check image tag (registry returned HTTP $status)." >&2
+            exit 1
+          fi
+
+      - name: Publish versioned image
+        env:
+          IMAGE: ${{ steps.release.outputs.image }}
+          TAG: ${{ steps.release.outputs.tag }}
+        id: publish
+        run: |
+          set -euo pipefail
+          docker push "$IMAGE:$TAG"
+          reference="$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE:$TAG")"
+          digest="${reference##*@}"
+          if [[ ! "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "Registry did not return a valid immutable image digest: $reference" >&2
+            exit 1
+          fi
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "reference=$IMAGE@$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Pull and verify published digest
+        env:
+          IMAGE: ${{ steps.release.outputs.image }}
+          DIGEST: ${{ steps.publish.outputs.digest }}
+        run: |
+          docker pull "$IMAGE@$DIGEST"
+          test "$(docker image inspect --format '{{.Config.User}}' "$IMAGE@$DIGEST")" = "app"
+          docker run --rm --entrypoint python "$IMAGE@$DIGEST" -c '
+          import os
+          from pathlib import Path
+          assert os.getuid() != 0, "published image process must not run as root"
+          forbidden = ("/app/data", "/app/models", "/app/mlruns", "/app/mlartifacts",
+                       "/app/mlflow.db", "/app/.env", "/models")
+          present = [path for path in forbidden if Path(path).exists()]
+          private_names = ("mlmodel", "model.pkl", "mlflow.db", "conda.yaml")
+          suspicious = [
+              path.as_posix() for path in Path("/app").rglob("*")
+              if path.name.lower() in private_names
+              or path.name.lower().startswith(".env")
+              or path.name.lower().endswith((".pem", ".key", ".crt", ".p12", ".pfx", ".token", ".secret"))
+              or "credential" in path.name.lower()
+              or "secret" in path.name.lower()
+          ]
+          assert not present and not suspicious, (present, suspicious)
+          '
+
+      - name: Scan published digest
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: ${{ steps.release.outputs.image }}@${{ steps.publish.outputs.digest }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+          scanners: vuln,secret
+
+      - name: Attest published image provenance
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be
+        with:
+          subject-name: ${{ steps.release.outputs.image }}
+          subject-digest: ${{ steps.publish.outputs.digest }}
+          push-to-registry: true
+
+      - name: Record release digest
+        env:
+          IMAGE: ${{ steps.release.outputs.image }}
+          TAG: ${{ steps.release.outputs.tag }}
+          DIGEST: ${{ steps.publish.outputs.digest }}
+        run: |
+          {
+            echo "## Published container"
+            echo
+            echo "- Version tag: \`$IMAGE:$TAG\`"
+            echo "- Immutable digest: \`$IMAGE@$DIGEST\`"
+            echo "- Source revision: \`${GITHUB_SHA}\`"
+            echo "- Provenance: GitHub build-provenance attestation was generated."
+          } >> "$GITHUB_STEP_SUMMARY"

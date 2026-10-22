@@ -1,0 +1,109 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-and-image:
+    name: Quality, image, and security checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: "3.12"
+
+      - name: Cache uv downloads
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-py312-${{ hashFiles('pyproject.toml', 'uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-py312-
+
+      - name: Install pinned uv
+        run: python -m pip install --disable-pip-version-check uv==0.13.4
+
+      - name: Check lockfile
+        run: uv lock --check
+
+      - name: Install locked project and test dependencies
+        run: uv sync --locked --group dev --no-install-package nvidia-nccl-cu13
+
+      - name: Lint
+        run: uv run --locked --no-sync ruff check src scripts tests
+
+      - name: Test
+        run: uv run --locked --no-sync pytest -q --junitxml=pytest-results.xml
+
+      - name: Upload pytest report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: pytest-results
+          path: pytest-results.xml
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Compile Python sources
+        run: uv run --locked --no-sync python -m compileall -q src scripts tests
+
+      - name: Validate application schema
+        run: |
+          uv run --locked --no-sync python -m json.tool schemas/network-flow-model-input-v1.schema.json > /dev/null
+          uv run --locked --no-sync pytest -q tests/test_model_input_schema.py
+
+      - name: Validate Docker context policy
+        run: uv run --locked --no-sync python scripts/validate_docker_context.py
+
+      - name: Build API image
+        run: docker build --pull --tag streaming-threat-api:ci-${GITHUB_SHA} .
+
+      - name: Verify non-root image and excluded artifacts
+        env:
+          IMAGE: streaming-threat-api:ci-${{ github.sha }}
+        run: |
+          test "$(docker image inspect --format '{{.Config.User}}' "$IMAGE")" = "app"
+          docker run --rm --entrypoint python "$IMAGE" -c '
+          import os
+          from pathlib import Path
+          assert os.getuid() != 0, "image process must not run as root"
+          forbidden = ("/app/data", "/app/models", "/app/mlruns", "/app/mlartifacts",
+                       "/app/mlflow.db", "/app/.env", "/models")
+          present = [path for path in forbidden if Path(path).exists()]
+          private_names = ("mlmodel", "model.pkl", "mlflow.db", "conda.yaml")
+          suspicious = [
+              path.as_posix() for path in Path("/app").rglob("*")
+              if path.name.lower() in private_names
+              or path.name.lower().startswith(".env")
+              or path.name.lower().endswith((".pem", ".key", ".crt", ".p12", ".pfx", ".token", ".secret"))
+              or "credential" in path.name.lower()
+              or "secret" in path.name.lower()
+          ]
+          assert not present and not suspicious, (present, suspicious)
+          '
+
+      - name: Scan image for vulnerabilities and secrets
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
+        with:
+          image-ref: streaming-threat-api:ci-${{ github.sha }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+          scanners: vuln,secret
