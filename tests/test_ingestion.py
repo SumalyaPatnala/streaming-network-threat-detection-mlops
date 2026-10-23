@@ -130,13 +130,19 @@ class RecordingSink:
         self.fail_once = fail_once
         self.triage_fail_once = triage_fail_once
 
-    def send(self, tenant_id: str, record: dict) -> None:
+    def send(
+        self, tenant_id: str, record: dict, correlation_id: str | None = None
+    ) -> None:
+        record = {**record, "correlation_id": correlation_id}
         self.calls.append((tenant_id, record))
         if self.fail_once:
             self.fail_once = False
             raise SplunkDeliveryError("test delivery failure")
 
-    def send_triage(self, tenant_id: str, record: dict) -> None:
+    def send_triage(
+        self, tenant_id: str, record: dict, correlation_id: str | None = None
+    ) -> None:
+        record = {**record, "correlation_id": correlation_id}
         self.triage_calls.append((tenant_id, record))
         if self.triage_fail_once:
             self.triage_fail_once = False
@@ -294,7 +300,7 @@ def test_event_and_incident_access_are_tenant_scoped_and_triage_is_human(
         triaged = client.post(
             "/v1/incidents/replay-001/triage",
             json={"decision": "acknowledged"},
-            headers=bearer("tenant-a"),
+            headers={**bearer("tenant-a"), "X-Request-ID": "triage-request-001"},
         )
         visible = client.get(
             "/v1/incidents", headers=bearer("tenant-a")
@@ -311,6 +317,7 @@ def test_event_and_incident_access_are_tenant_scoped_and_triage_is_human(
     assert sink.triage_calls[0][1]["evidence_refs"] == [
         "zeek://conn.log#replay-001"
     ]
+    assert sink.triage_calls[0][1]["correlation_id"] == "triage-request-001"
     assert visible.status_code == 200
     assert visible.json()[0]["triage_status"] == "acknowledged"
     assert visible.json()[0]["triage_history"] == [
@@ -406,12 +413,17 @@ def test_splunk_failure_is_retryable_without_reinference(monkeypatch) -> None:
         sink = RecordingSink(fail_once=True)
         client.app.state.splunk_sink = sink
         body = {"events": [sample_event()]}
-        failed = client.post("/v1/ingest", json=body, headers=bearer("tenant-a"))
+        failed = client.post(
+            "/v1/ingest",
+            json=body,
+            headers={**bearer("tenant-a"), "X-Request-ID": "ingest-request-001"},
+        )
         retried = client.post("/v1/ingest", json=body, headers=bearer("tenant-a"))
         assert failed.status_code == 503
         assert retried.status_code == 200
         assert retried.json()[0]["duplicate"] is True
         assert len(sink.calls) == 2
+        assert sink.calls[0][1]["correlation_id"] == "ingest-request-001"
         assert client.app.state.prediction_service.runtime.model.calls == 1
 
 
@@ -456,13 +468,15 @@ def test_splunk_payload_omits_raw_features_and_preserves_evidence(
         "https://splunk.example.test:8088/services/collector/event",
         "test-token",
         "security",
-    ).send("tenant-a", event)
+    ).send("tenant-a", event, "request-001")
 
     request = captured["request"]
     assert request.get_header("Authorization") == "Splunk test-token"
     payload = json.loads(request.data)
     assert payload["index"] == "security"
     assert payload["event"]["tenant_id"] == "tenant-a"
+    assert payload["event"]["model_version"] == "m-test"
+    assert payload["event"]["correlation_id"] == "request-001"
     assert payload["event"]["evidence_refs"] == ["zeek://conn.log#replay-001"]
     assert payload["event"]["score_semantics"].startswith("uncalibrated")
     assert payload["event"]["response_recommendation"] == "analyst_review"
@@ -483,10 +497,13 @@ def test_splunk_payload_omits_raw_features_and_preserves_evidence(
             "evidence_refs": ["zeek://conn.log#replay-001"],
             "prediction": {"model_id": "m-test", "prediction": 1},
         },
+        "triage-request-001",
     )
     triage_payload = json.loads(captured["request"].data)
     assert triage_payload["event"]["kind"] == "incident_triage"
     assert triage_payload["event"]["decision"] == "acknowledged"
+    assert triage_payload["event"]["model_version"] == "m-test"
+    assert triage_payload["event"]["correlation_id"] == "triage-request-001"
     assert triage_payload["event"]["evidence_refs"] == [
         "zeek://conn.log#replay-001"
     ]
@@ -499,6 +516,7 @@ def test_metrics_endpoint_exposes_prometheus_format(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert "threat_detection_inference_duration_seconds" in response.text
+    assert "threat_detection_model_info" in response.text
 
 
 def test_ingestion_validation_errors_increment_metrics(monkeypatch) -> None:

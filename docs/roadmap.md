@@ -1,8 +1,8 @@
 # Platform Roadmap and Acceptance Evidence
 
 This roadmap distinguishes application-level implementation from external validation
-and deployment. No paid cloud resources, Terraform applies, or deployments are
-authorized by this plan.
+and deployment. The user authorized a local Kind deployment for M5; no paid cloud
+resources or Terraform applies are authorized.
 
 ## Status summary
 
@@ -10,18 +10,46 @@ authorized by this plan.
 |---|---|---|
 | Training and evaluation | Implemented; test evaluation gated | Milestone 1 report, readiness report, governance tests |
 | FastAPI and Docker | Implemented and locally verified | Milestone 2 report; real saved-model container smoke |
-| CI/CD | Existing and expanded hosted push CI verified | [Expanded feature-branch run passed](https://github.com/SumalyaPatnala/streaming-network-threat-detection-mlops/actions/runs/39908441843), including Helm/Terraform and Trivy; PR event and GHCR release/provenance remain unverified |
+| CI/CD | Existing and expanded hosted push CI verified | [Expanded feature-branch run passed](https://github.com/SumalyaPatnala/streaming-network-threat-detection-mlops/actions/runs/39989218472), including Helm/Terraform and Trivy; PR event and GHCR release/provenance remain unverified |
 | Streaming ingestion | Implemented for normalized HTTP events; external sources not verified | Versioned event envelope, replay fixtures, idempotency, bounded batch; no raw Zeek parser or broker |
-| Identity and tenant isolation | Application boundary implemented; production access remains blocked | OIDC JWT, tenant-scoped SQLite, triage, quotas; local tests only, no deployed IdP |
-| Splunk | Optional prediction and triage HEC export implemented; mocked only | HTTPS-only sink, persisted prediction retry state, evidence linkage, SPL searches and dashboard; triage retries may duplicate audit events; no live instance/credentials |
+| Identity and tenant isolation | Signed-token app-level end-to-end verified; deployed Helm API has no IdP configured | OIDC signature/claims, tenant-scoped SQLite, triage, quotas, negative cross-tenant test; no live or deployed IdP |
+| Splunk | Prediction and triage export verified against local HTTPS mock | Actual sink, simulated HEC 503/retry, evidence/correlation/model linkage, SPL and dashboard definitions; no live instance/credentials |
 | MLflow model lifecycle | Experiment/artifact tracking implemented; promotion controls incomplete | Explicit artifact selection; no registered-model stage/alias policy or automated promotion/rollback |
-| Drift and observability | Optional PSI monitor and metric/alert/dashboard definitions implemented | Synthetic drift tests only; no approved reference baseline or live Prometheus/Grafana |
+| Drift and observability | PSI alert tested; local Prometheus/Grafana deployed and scraped for verification | Synthetic reference only; Prometheus target `up`, 4 alert rules healthy, Grafana dashboard served; no approved operational baseline |
 | IaC/Terraform | GCP modules/roots validated; no plan/apply | `terraform fmt` and `validate` pass with backend disabled; no project credentials/state |
 | Linux operations | Basic container controls verified locally | Non-root, read-only mount, health check, local cgroup limits; no production ops |
-| Local Kubernetes learning lab | Separate track; locally verified | Kind pod, endpoint, real-model inference, invalid-schema response, rollout/rollback, recreation, logs/events/resource counters; see lab report |
-| Helm | Implemented and lint/template verified; not installed | Dev/prod values and runtime security; SQLite chart blocks replicas >1 |
+| Local Kubernetes learning lab | Earlier learning workload preserved; separate M5 Helm workload deployed | Real model inference, probes, read-only mount, non-root runtime, schema rejection, and metrics verified in dedicated Kind cluster |
+| Helm | Installed and smoke-tested in local Kind | Dev/prod lint/template; local release `m5-platform`, existing workload untouched; SQLite chart blocks replicas >1 |
 | Production Kubernetes scheduling/scaling | Not implemented | No production cluster, worker scheduling, autoscaler, or artifact distribution validation |
 | Incident response | Human triage workflow implemented; operations not exercised | Analyst acknowledgment/dismissal; no disruptive automation or incident drills |
+
+## M5 — End-to-end platform integration and local verification
+
+**Status:** Local demo completed; external/production dependencies remain unverified.
+
+- The updated image was built and loaded into the existing `network-threat-lab`
+  Kind cluster. The development Helm chart installed release `m5-platform` in
+  `threat-detection-lab`, alongside and without changing the previous local
+  Deployment. The actual saved MLflow artifact remains host-backed and mounted
+  read-only; this is not a production distribution method.
+- Readiness, liveness, startup, UID 999, read-only model access, and token
+  automount settings were inspected. Real saved-model single and batch inference,
+  invalid schema rejection, and Prometheus exposition were exercised through the
+  deployed Helm Service. Tenant ingestion fails closed in this deployment
+  because no identity provider is configured.
+- `tests/test_e2e_saved_model.py` drives the actual app/model using signed
+  synthetic tenant JWTs and a local TLS mock HEC. The JWKS lookup is test-stubbed;
+  JWT signature and claims are checked by the production verifier. The test
+  verifies role denial, cross-tenant 404, idempotency and conflicting replay,
+  batch prediction, a synthetic PSI threshold alert, prediction and triage HEC
+  records, a failed HEC send/retry, and analyst history. No live Splunk or IdP
+  was used.
+- A temporary, separately named local Docker Compose project verified Prometheus
+  metric scraping (`up`), all four alert rule health states, and the provisioned
+  Grafana dashboard. These services were stopped after verification.
+- GCP Terraform formatting and validation are local-only; no plan, apply, cloud
+  account access, or billable resource was used.
+- Reproduction and evidence boundaries: [M5 demo guide](milestone-5-end-to-end-demo.md).
 
 ## Ordered milestones
 

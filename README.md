@@ -12,13 +12,13 @@ holdout**. Do not use it for further model selection or tuning.
 | Reproducible training, validation, MLflow, input contract | Implemented and locally verified |
 | MLflow registry promotion and model rollback controls | Partially implemented: experiment/artifact tracking exists and operators explicitly select an artifact; no registry-stage promotion policy or automated model rollback controller |
 | FastAPI inference and non-root Docker image | Implemented and locally verified with a saved model |
-| GitHub Actions CI and manually triggered GHCR release | Expanded CI passed on the pushed feature branch; manual GHCR release is implemented but intentionally unexecuted. See [the latest CI run](https://github.com/SumalyaPatnala/streaming-network-threat-detection-mlops/actions/runs/39908441843) and the [Milestone 3 report](reports/milestone-3-report.md) |
+| GitHub Actions CI and manually triggered GHCR release | Expanded CI passed on the pushed feature branch; manual GHCR release is implemented but intentionally unexecuted. See [the latest CI run](https://github.com/SumalyaPatnala/streaming-network-threat-detection-mlops/actions/runs/39989218472) and the [Milestone 3 report](reports/milestone-3-report.md) |
 | HTTP event ingestion, schema, replay, duplicate/retry handling | Implemented and locally tested for already-normalized records; raw Zeek parsing, durable broker ingestion, and live telemetry are not implemented |
-| OIDC tenant identity and tenant-scoped investigations | Implemented and tested in application code; real IdP/deployed-policy verification, encryption, retention, and multi-replica state are outstanding |
-| Splunk HEC prediction and triage export | Implemented behind optional HTTPS configuration and Secret-backed token; mocked tests pass; no live Splunk instance or credentials were used |
-| Drift monitoring and observability | PSI monitoring is configurable; unit tests use synthetic references. No approved production baseline, Prometheus/Grafana deployment, or alert routing has been verified |
-| Local Kubernetes deployment lab | Existing Kind learning lab verified before this change; it was not modified or redeployed. See the [local Kubernetes lab guide](docs/local-kubernetes-lab.md) and report |
-| Helm | Development and production-value charts lint and render; no Helm release was installed |
+| OIDC tenant identity and tenant-scoped investigations | Signed-token, role, tenant-boundary, and cross-tenant tests pass end-to-end with the actual saved model; deployed Helm release intentionally has no IdP configured and returns 503 for tenant routes |
+| Splunk HEC prediction and triage export | Full app integration uses a local HTTPS mock HEC, trusted test certificate, actual sink, delivery failure/retry, correlation IDs, and payload checks; no live Splunk instance was used |
+| Drift monitoring and observability | PSI alert is exercised with reproducible synthetic references; a separate local Prometheus/Grafana stack scraped the deployed API, loaded four healthy alert rules, and served its four-panel dashboard. No approved production baseline or alert routing |
+| Local Kubernetes deployment lab | Earlier learning-lab workload was preserved; an updated separate Helm release was deployed and verified in the dedicated Kind cluster. See the [M5 demo guide](docs/milestone-5-end-to-end-demo.md), [local Kubernetes lab guide](docs/local-kubernetes-lab.md), and report |
+| Helm | Development and production-value charts lint and render; the development chart is installed and smoke-tested in the isolated Kind lab |
 | Terraform (GCP) | Reusable modules and dev/prod roots pass local `fmt` and `validate`; no plan or apply was run, and no infrastructure is deployed |
 | Production Kubernetes, worker scheduling/scaling, and GitOps | Not externally verified; one replica is required while the event store is SQLite |
 | Incident response | Deterministic analyst-review recommendation and tenant-scoped human triage are implemented; no disruptive response action is automated |
@@ -36,12 +36,12 @@ and [design review records](docs/design-reviews/).
 | Streaming network-event ingestion | [`schemas/network-security-event-v1.schema.json`](schemas/network-security-event-v1.schema.json), [`src/threat_detection/event_store.py`](src/threat_detection/event_store.py), [`src/threat_detection/replay.py`](src/threat_detection/replay.py) | Versioned normalized records, idempotency/conflict tests, auth tests, and synthetic replay fixtures pass | Implemented and verified |
 | Raw Zeek parsing and durable broker ingestion | No raw parser or broker consumer exists | API accepts normalized v1 HTTP records only; no Kafka/Splunk input-stream or raw Zeek parser test | Not implemented |
 | Automation, CI/CD, image build, release controls | [`.github/workflows/ci.yml`](.github/workflows/ci.yml), [`.github/workflows/release.yml`](.github/workflows/release.yml), [`scripts/`](scripts/) | [Expanded hosted push CI passed](https://github.com/SumalyaPatnala/streaming-network-threat-detection-mlops/actions/runs/39908441843), including tests, Helm/Terraform, image build, Trivy vulnerability/secret scan; manual image release was not triggered | Partially implemented |
-| Drift monitoring, Prometheus/Grafana, operational alerts | [`src/threat_detection/drift.py`](src/threat_detection/drift.py), [`src/threat_detection/observability.py`](src/threat_detection/observability.py), [`deploy/observability/`](deploy/observability/) | PSI, metric, and alert-definition tests pass against synthetic inputs; no approved reference population, deployed Prometheus/Grafana, or live alert route | Implemented but not externally verified |
-| Splunk predictions, investigation events, and dashboards | [`src/threat_detection/splunk.py`](src/threat_detection/splunk.py), [`deploy/splunk/`](deploy/splunk/), [`tests/test_ingestion.py`](tests/test_ingestion.py) | HEC payload and failure behavior are mocked and tested; Simple XML parses. No live Splunk search, import, or alert route was tested | Implemented but not externally verified |
+| Drift monitoring, Prometheus/Grafana, operational alerts | [`src/threat_detection/drift.py`](src/threat_detection/drift.py), [`src/threat_detection/observability.py`](src/threat_detection/observability.py), [`deploy/observability/`](deploy/observability/) | Synthetic PSI alert is triggered in saved-model e2e; Prometheus scraped the live Kind API (`up=1`), all four rules reported healthy, and Grafana served its four-panel dashboard | Implemented and verified in local demo; no approved production baseline or alert routing |
+| Splunk predictions, investigation events, and dashboards | [`src/threat_detection/splunk.py`](src/threat_detection/splunk.py), [`deploy/splunk/`](deploy/splunk/), [`tests/test_e2e_saved_model.py`](tests/test_e2e_saved_model.py) | Actual HEC sink sends to local HTTPS mock; test exercises 503 then retry, prediction and triage events, tenant/model/correlation/evidence fields, and feature/token omission. XML/SPL definitions parse/reviewed; no live Splunk search/import | Implemented and locally verified against mock |
 | MLflow experiments, artifacts, evaluation, promotion, and rollback | Existing [`scripts/train_baselines.py`](scripts/train_baselines.py), [`src/threat_detection/api.py`](src/threat_detection/api.py), and saved artifact selection | Existing experiment/artifact workflow is reused; inference is tied to an explicit model artifact. There is no registered-model promotion policy or automated model rollback | Partially implemented |
-| Kubernetes orchestration and Helm | [`deploy/helm/threat-detection/`](deploy/helm/threat-detection/), [`docs/local-kubernetes-lab.md`](docs/local-kubernetes-lab.md) | Helm lint and dev/prod template rendering pass; existing Kind lab has prior real-model evidence, but this chart/image was not installed or redeployed | Implemented but not externally verified |
+| Kubernetes orchestration and Helm | [`deploy/helm/threat-detection/`](deploy/helm/threat-detection/), [`scripts/deploy_kind_helm.sh`](scripts/deploy_kind_helm.sh), [`scripts/verify_kind_helm.sh`](scripts/verify_kind_helm.sh) | Updated image built/loaded; Helm release is deployed in dedicated Kind cluster. Readiness/liveness/startup, UID 999, read-only model, real prediction/batch, schema rejection, and valid metrics verified | Implemented and verified in local Kind |
 | Terraform cloud infrastructure | [`infra/terraform/`](infra/terraform/) | Terraform 1.17.0 `fmt -check` and `validate` pass for dev/prod; no credentialed plan or apply; infrastructure is not deployed | Implemented but not externally verified |
-| Tenant isolation and human incident workflow | [`src/threat_detection/identity.py`](src/threat_detection/identity.py), [`src/threat_detection/event_store.py`](src/threat_detection/event_store.py), [`tests/test_identity.py`](tests/test_identity.py), [`tests/test_ingestion.py`](tests/test_ingestion.py) | Signed-token, role, tenant-scoping, and cross-tenant negative tests pass; persistent state is single-process SQLite and no real IdP/deployed policy was verified | Implemented and verified |
+| Tenant isolation and human incident workflow | [`src/threat_detection/identity.py`](src/threat_detection/identity.py), [`src/threat_detection/event_store.py`](src/threat_detection/event_store.py), [`tests/test_e2e_saved_model.py`](tests/test_e2e_saved_model.py) | Signed OIDC claims and signature, role denial, cross-tenant 404, authenticated retrieval and triage history verified with real model in app-level e2e. OIDC discovery/JWKS provider not deployed to Kind | Implemented and application-verified; production IdP unverified |
 
 ## Environment and tests
 
@@ -59,15 +59,20 @@ docker run --rm --entrypoint python streaming-threat-api:ci -c \
   'import os; assert os.getuid() != 0'
 ```
 
-Latest local validation: **73 pytest tests passed** with one upstream
+Latest local validation: **75 pytest tests passed** with one upstream
 Starlette/httpx deprecation warning; Ruff, `uv lock --check`, and Python
 compilation passed. Helm lint/rendering passed for development and production
 values. Terraform 1.17.0 `fmt -check` and `validate` passed for both environments.
-The Docker image rebuilt and imported the application as non-root; JSON, YAML,
-XML, Kubernetes manifest, and Docker-context checks passed. The
-[expanded hosted CI run](https://github.com/SumalyaPatnala/streaming-network-threat-detection-mlops/actions/runs/39908441843)
-also passed. These checks do not constitute live Splunk, an updated cluster
-deployment, or cloud infrastructure verification.
+The updated Helm release is live in local Kind; saved-model inference and batch
+inference pass, and the `/metrics` response parses into 22 Prometheus metric
+families. A separate local Compose monitoring stack scraped that API with
+`up=1`, loaded four healthy alert rules, and served the provisioned four-panel
+Grafana dashboard. The TLS local HEC end-to-end test, JSON/YAML/XML,
+Kubernetes-manifest, Docker-context, and image non-root checks pass. The
+[previous expanded hosted CI run](https://github.com/SumalyaPatnala/streaming-network-threat-detection-mlops/actions/runs/39989218472)
+passed before M5 changes; the M5 changes still require a hosted CI run after
+push. These checks do not constitute live Splunk, a deployed production IdP,
+an approved drift baseline/alert route, or cloud infrastructure verification.
 
 ### CI/CD workflows
 

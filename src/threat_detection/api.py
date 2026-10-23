@@ -46,6 +46,7 @@ from threat_detection.observability import (
     INFERENCE_REQUESTS,
     INGESTED_EVENTS,
     INGESTION_ERRORS,
+    MODEL_INFO,
     SPLUNK_DELIVERY_ERRORS,
     prometheus_payload,
 )
@@ -346,10 +347,14 @@ class PredictionService:
             columns=self.runtime.feature_names,
         )
         try:
-            with INFERENCE_LATENCY.time():
+            with INFERENCE_LATENCY.labels(
+                model_id=self.runtime.model_id
+            ).time():
                 scores = np.asarray(self.runtime.model.predict_proba(row))
         except Exception as error:
-            INFERENCE_REQUESTS.labels(outcome="error").inc()
+            INFERENCE_REQUESTS.labels(
+                model_id=self.runtime.model_id, outcome="error"
+            ).inc()
             LOGGER.exception("Model inference failed")
             raise RuntimeError("Model inference failed") from error
         if (
@@ -358,11 +363,16 @@ class PredictionService:
             or np.any((scores < 0) | (scores > 1))
             or not np.allclose(scores.sum(axis=1), 1.0, rtol=0, atol=1e-6)
         ):
-            INFERENCE_REQUESTS.labels(outcome="error").inc()
+            INFERENCE_REQUESTS.labels(
+                model_id=self.runtime.model_id, outcome="error"
+            ).inc()
             raise RuntimeError("Model returned an invalid binary probability matrix")
         score = float(scores[0, 1])
         prediction = int(score >= self.threshold)
-        INFERENCE_REQUESTS.labels(outcome="attack" if prediction else "normal").inc()
+        INFERENCE_REQUESTS.labels(
+            model_id=self.runtime.model_id,
+            outcome="attack" if prediction else "normal",
+        ).inc()
         return PredictionResponse(
             event_id=record.event_id,
             observed_at=record.observed_at,
@@ -467,6 +477,10 @@ def create_app(
         application.state.runtime = runtime_loader(
             Path(model_path_value), model_id, schema_path
         )
+        MODEL_INFO.labels(
+            model_id=application.state.runtime.model_id,
+            schema_version=application.state.runtime.schema_version,
+        ).set(1)
         application.state.prediction_service = PredictionService(
             application.state.runtime
         )
@@ -715,7 +729,10 @@ def create_app(
                 ):
                     try:
                         await anyio.to_thread.run_sync(
-                            sink.send, principal.tenant_id, stored
+                            sink.send,
+                            principal.tenant_id,
+                            stored,
+                            request.state.request_id,
                         )
                     except SplunkDeliveryError as error:
                         store.finish_splunk_delivery(
@@ -802,6 +819,7 @@ def create_app(
                         "evidence_refs": record["evidence_refs"],
                         "prediction": record["prediction"],
                     },
+                    request.state.request_id,
                 )
             except SplunkDeliveryError as error:
                 INGESTION_ERRORS.inc()

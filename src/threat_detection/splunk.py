@@ -43,7 +43,12 @@ class SplunkHECSink:
             raise RuntimeError("SPLUNK_HEC_URL and SPLUNK_HEC_TOKEN must be set together")
         return cls(endpoint, token, index)
 
-    def send(self, tenant_id: str, record: dict[str, Any]) -> None:
+    def send(
+        self,
+        tenant_id: str,
+        record: dict[str, Any],
+        correlation_id: str | None = None,
+    ) -> None:
         prediction = record["prediction"]
         event = {
             "kind": "model_prediction",
@@ -52,6 +57,7 @@ class SplunkHECSink:
             "observed_at": prediction.get("observed_at"),
             "predicted_at": prediction["predicted_at"],
             "model_id": prediction["model_id"],
+            "model_version": prediction["model_id"],
             "schema_version": prediction["schema_version"],
             "prediction": prediction["prediction"],
             "class_label": prediction["class_label"],
@@ -63,9 +69,16 @@ class SplunkHECSink:
                 "analyst_review" if prediction["prediction"] == 1 else "none"
             ),
         }
+        if correlation_id is not None:
+            event["correlation_id"] = correlation_id
         self._post(event, prediction["predicted_at"])
 
-    def send_triage(self, tenant_id: str, record: dict[str, Any]) -> None:
+    def send_triage(
+        self,
+        tenant_id: str,
+        record: dict[str, Any],
+        correlation_id: str | None = None,
+    ) -> None:
         prediction = record["prediction"]
         event = {
             "kind": "incident_triage",
@@ -75,9 +88,12 @@ class SplunkHECSink:
             "reviewed_by": record["reviewed_by"],
             "recorded_at": record["recorded_at"],
             "model_id": prediction["model_id"],
+            "model_version": prediction["model_id"],
             "prediction": prediction["prediction"],
             "evidence_refs": record["evidence_refs"],
         }
+        if correlation_id is not None:
+            event["correlation_id"] = correlation_id
         self._post(event, record["recorded_at"])
 
     def _post(self, event: dict[str, Any], timestamp: str) -> None:

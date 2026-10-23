@@ -8,7 +8,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -25,8 +25,8 @@
       "id": 1,
       "targets": [
         {
-          "expr": "sum by (outcome) (rate(threat_detection_inference_requests_total[5m]))",
-          "legendFormat": "{{outcome}}",
+          "expr": "sum by (model_id, outcome) (rate(threat_detection_inference_requests_total[5m]))",
+          "legendFormat": "{{model_id}} / {{outcome}}",
           "refId": "A"
         }
       ],
@@ -36,7 +36,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -53,8 +53,8 @@
       "id": 2,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(threat_detection_inference_duration_seconds_bucket[5m])))",
-          "legendFormat": "p95",
+          "expr": "histogram_quantile(0.95, sum by (model_id, le) (rate(threat_detection_inference_duration_seconds_bucket[5m])))",
+          "legendFormat": "{{model_id}} p95",
           "refId": "A"
         }
       ],
@@ -64,7 +64,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -92,7 +92,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {

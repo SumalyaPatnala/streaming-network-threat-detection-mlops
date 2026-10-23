@@ -30,7 +30,7 @@
       <title>Recent model predictions</title>
       <table>
         <search>
-          <query>index=$index$ source=network-threat-detection sourcetype=_json kind=model_prediction | sort 0 - _time | table _time tenant_id event_id class_label model_score score_semantics model_id evidence_refs response_recommendation</query>
+          <query>index=$index$ source=network-threat-detection sourcetype=_json kind=model_prediction | sort 0 - _time | table _time tenant_id event_id class_label model_score score_semantics model_id model_version correlation_id evidence_refs response_recommendation</query>
           <earliest>$time.earliest$</earliest>
           <latest>$time.latest$</latest>
         </search>
@@ -42,7 +42,7 @@
       <title>Human investigation decisions</title>
       <table>
         <search>
-          <query>index=$index$ source=network-threat-detection sourcetype=_json kind=incident_triage | sort 0 - _time | table _time tenant_id event_id decision reviewed_by model_id prediction evidence_refs</query>
+          <query>index=$index$ source=network-threat-detection sourcetype=_json kind=incident_triage | sort 0 - _time | table _time tenant_id event_id decision reviewed_by model_id model_version correlation_id prediction evidence_refs</query>
           <earliest>$time.earliest$</earliest>
           <latest>$time.latest$</latest>
         </search>

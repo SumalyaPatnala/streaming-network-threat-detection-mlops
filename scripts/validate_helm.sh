@@ -13,6 +13,21 @@ helm template threat-demo "$CHART" --namespace threat-detection \
 helm template threat-prod "$CHART" --namespace threat-detection \
   --values "$CHART/values-prod.yaml" --set "image.digest=$TEST_DIGEST" >/dev/null
 
+rendered_dev="$(helm template threat-demo "$CHART" --namespace threat-detection \
+  --values "$CHART/values-dev.yaml")"
+for expected in \
+  "fsGroup: 999" \
+  "automountServiceAccountToken: false" \
+  "path: /health/ready" \
+  "path: /health/live" \
+  "readOnlyRootFilesystem: true" \
+  "claimName: network-threat-model"; do
+  if ! grep -Fq "$expected" <<<"$rendered_dev"; then
+    echo "Rendered development chart is missing required setting: $expected" >&2
+    exit 1
+  fi
+done
+
 if helm template threat-invalid "$CHART" --set model.id=test >/dev/null 2>&1; then
   echo "Chart must reject a missing trusted model claim." >&2
   exit 1

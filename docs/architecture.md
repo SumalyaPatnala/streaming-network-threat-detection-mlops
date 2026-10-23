@@ -6,10 +6,12 @@ This document separates verified local behavior from proposed platform architect
 The service is a single Python/FastAPI process with a mounted, explicitly selected
 MLflow model. Local normalized-event ingestion, optional OIDC tenant authentication,
 tenant-scoped investigation state, optional Splunk HEC delivery, and configurable PSI
-monitoring have been added and unit/integration tested. They have not been deployed
-to a trusted identity provider, Splunk, or production infrastructure.
-A separate local Kind learning lab was verified before these changes and is not a
-production Kubernetes deployment.
+monitoring are implemented. The full app flow is tested with the saved MLflow model,
+signed synthetic OIDC tokens, a local HTTPS mock HEC, and synthetic drift references.
+The updated API has also been deployed through Helm to the dedicated local Kind
+cluster and verified for real-model inference, batch inference, runtime security,
+health probes, schema rejection, and Prometheus exposition. The local Helm deployment
+does not configure an identity provider or Splunk.
 The exceptional Milestone 1 scores do not establish production generalization; see
 [the readiness review](../reports/milestone-1-readiness.md).
 
@@ -19,22 +21,44 @@ a dedicated local cluster. No paid infrastructure is approved or provisioned.
 Production apply, deployment, or external exposure still requires explicit review
 and approval.
 
-## Implemented and locally verified architecture
+## Architecture and verification boundaries
 
 ```mermaid
 flowchart LR
-  Producer["Normalized v1 event producer"] --> OIDC["OIDC JWT verification"]
-  OIDC --> API["FastAPI / Pydantic"]
-  API --> Service["PredictionService"]
-  Service --> Model["Mounted MLflow XGBoost pipeline"]
-  Model --> API
-  API --> Store["Tenant-keyed SQLite prediction/triage metadata"]
-  API --> HEC["Optional Splunk HEC outbox"]
-  API --> Metrics["Prometheus /metrics"]
-  API --> Client["Prediction / analyst workflow response"]
-  Schema["Bundled v1 schema"] --> API
-  Drift["Optional approved PSI reference"] --> API
-  Health["Liveness / readiness"] --> API
+  Events["Normalized network events"] --> HTTP["HTTP ingestion API"]
+  HTTP --> Schema["Versioned schema validation"]
+  Schema --> Auth["OIDC tenant authentication and authorization"]
+  Auth --> Inference["FastAPI inference service"]
+  Inference --> MLflow["Selected MLflow model artifact"]
+  MLflow --> Inference
+  Inference --> Store["Tenant-scoped investigations and triage history"]
+  Store --> HEC["Splunk HEC prediction and triage export"]
+  Store --> Human["Human-authorized incident triage"]
+  Inference --> Metrics["Prometheus-compatible /metrics"]
+  Drift["Configured PSI reference"] --> Metrics
+  Metrics --> Prometheus["Prometheus scrape and alert rules"]
+  Prometheus --> Grafana["Grafana dashboard"]
+
+  subgraph Deployed["Deployed and verified locally in dedicated Kind cluster"]
+    HTTP
+    Inference
+    MLflow
+    Metrics
+    Schema
+  end
+
+  subgraph LocalMock["Verified only with local integration test"]
+    HEC
+  end
+
+  subgraph Monitoring["Separately deployed local Docker Compose verification"]
+    Prometheus
+    Grafana
+  end
+
+  Helm["Helm chart"] --> Deployed
+  Terraform["GCP Terraform modules (fmt/validate only)"] -. "not applied" .-> Cloud["GCP resources"]
+  CI["GitHub Actions: tests, image build, Trivy, Helm, Terraform"] --> Helm
 ```
 
 - **Model serving:** one API process loads the selected XGBoost preprocessing/model
@@ -47,34 +71,37 @@ flowchart LR
 - **Investigations:** event metadata and analyst acknowledgment/dismissal are
   tenant-scoped. Predictions only recommend analyst review; no disruptive action
   is automated. The optional SQLite store persists metadata only, never raw features.
-- **Integrations:** optional HTTPS Splunk HEC receives prediction/evidence and
-  human-triage events;
-  Prometheus metrics, JSON request logs, correlation IDs, configurable PSI windows,
-  and example Grafana/alert rules are implemented. No live integration was exercised.
+- **Integrations:** a local end-to-end test sends prediction/evidence and
+  human-triage events over verified HTTPS to a local mock HEC, including the
+  authorization header, correlation ID, model ID/version, timeout, and one
+  simulated retry. There is no live Splunk instance. Prometheus metrics are
+  parsed from the deployed API and include model ID. A separate local Compose
+  stack scraped the Kind API, loaded all four alert rules, and served the
+  provisioned Grafana dashboard; this stack is not part of the Helm release or
+  a production monitoring deployment.
 - **Container operations:** digest-pinned Python base, `uv.lock`, OpenMP runtime,
   non-root `app` user, read-only model mount, readiness health check, and locally
   exercised CPU/memory limits.
 - **Not present or externally verified:** raw Zeek normalization, a durable broker,
-  production IdP/Splunk/Prometheus, a validated operational drift baseline, live alert
-  routing, production Terraform deployment, and production reliability evidence.
-  The updated GitHub Actions gates have not yet run on GitHub; earlier CI passed on
-  the `main` push commit recorded in the
-  [Milestone 3 report](../reports/milestone-3-report.md). The manually triggered
+  production IdP/Splunk/Prometheus, an approved operational drift baseline, live
+  alert routing, production Terraform deployment, and production reliability
+  evidence. Terraform modules are validated but not applied. The manually triggered
   GHCR workflow is implemented but has not been run; image publication and
   provenance verification remain pending.
 
 ## Separate local Kubernetes learning lab
 
-The Kind lab is a distinct infrastructure-learning track, not a replacement for
-M4 or a production deployment. It reuses the existing image and mounts the
-operator-selected model through a read-only host-backed local PV/PVC. The host
-mount is explicitly local-only; the pod itself uses the restricted Pod Security
-profile, a no-token service account, and no RBAC grants. Actual pod, endpoint,
-inference, rollout, rollback, and recovery evidence is recorded in [the local lab
-report](../reports/local-kubernetes-lab-report.md), and deployment instructions
-are in [the lab guide](local-kubernetes-lab.md). This verifies a local
-single-node learning deployment only; it does not satisfy production scheduling,
-scaling, availability, or artifact provenance requirements.
+The Helm M5 release is deployed alongside the earlier learning-lab Deployment in
+the dedicated `kind-network-threat-lab` cluster and `threat-detection-lab`
+namespace; it does not replace that workload. The selected model is mounted
+read-only from the existing local PV/PVC. The pod uses restricted Pod Security,
+UID/GID 999, a no-token service account, no RBAC grants, a read-only root
+filesystem, and resource limits. Startup/readiness/liveness, actual saved-model
+inference and batch inference, malformed schema rejection, and metric exposition
+were verified through the Helm Service. See the [Milestone 5 demo guide](milestone-5-end-to-end-demo.md)
+and [local lab report](../reports/local-kubernetes-lab-report.md). The host-backed
+model mount remains local-only; this does not verify production scheduling,
+scaling, availability, or artifact provenance.
 
 See the [Milestone 2 report](../reports/milestone-2-report.md) for actual local
 verification results. Docker image operation is currently single-process CPU
@@ -234,9 +261,10 @@ runtime or toolchain.
 
 Prometheus metrics, example alert rules, a Grafana dashboard, JSON request logs,
 correlation IDs, configurable PSI thresholds, and manual tenant-scoped triage are
-implemented. No Prometheus/Grafana server, alert route, live drift baseline, or
-production incident exercise has been verified. No production SLOs have been
-measured. Proposed
+implemented. A local Prometheus/Grafana Compose stack was exercised against the
+Kind API; no production monitoring deployment, alert route, approved live drift
+baseline, or production incident exercise has been verified. No production SLOs
+have been measured. Proposed
 initial acceptance targets (to be approved and baselined in CI/CD before deployment):
 
 - Serving availability at least **99.5% over a rolling 30-day window** after an

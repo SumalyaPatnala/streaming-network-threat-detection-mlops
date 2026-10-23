@@ -39,3 +39,27 @@ def test_grafana_dashboard_is_importable_and_has_latency_drift_panels() -> None:
     assert dashboard["uid"] == "network-threat-detection"
     assert "Inference latency p95" in titles
     assert "Maximum feature PSI across tenant windows" in titles
+    model_panels = [
+        panel for panel in dashboard["panels"] if panel["title"] == "Inference throughput by outcome"
+    ]
+    assert "model_id" in model_panels[0]["targets"][0]["expr"]
+    assert all(
+        panel["datasource"]["uid"] == "prometheus"
+        for panel in dashboard["panels"]
+    )
+
+
+def test_local_prometheus_and_grafana_compose_is_loopback_only_and_provisioned() -> None:
+    compose = yaml.safe_load(
+        (ROOT / "deploy/observability/docker-compose.yml").read_text(
+            encoding="utf-8"
+        )
+    )
+    prometheus = compose["services"]["prometheus"]
+    grafana = compose["services"]["grafana"]
+
+    assert prometheus["ports"] == ["127.0.0.1:19090:9090"]
+    assert grafana["ports"] == ["127.0.0.1:13000:3000"]
+    assert "GRAFANA_ADMIN_PASSWORD" in grafana["environment"]["GF_SECURITY_ADMIN_PASSWORD"]
+    assert any("prometheus-alerts.yaml" in volume for volume in prometheus["volumes"])
+    assert any("grafana-dashboard.json" in volume for volume in grafana["volumes"])
