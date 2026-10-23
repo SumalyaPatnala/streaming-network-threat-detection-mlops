@@ -10,7 +10,7 @@ resources or Terraform applies are authorized.
 |---|---|---|
 | Training and evaluation | Implemented; test evaluation gated | Milestone 1 report, readiness report, governance tests |
 | FastAPI and Docker | Implemented and locally verified | Milestone 2 report; real saved-model container smoke |
-| CI/CD | Existing and expanded hosted push CI verified | [Expanded feature-branch run passed](https://github.com/SumalyaPatnala/streaming-network-threat-detection-mlops/actions/runs/39989218472), including Helm/Terraform and Trivy; PR event and GHCR release/provenance remain unverified |
+| CI/CD | Existing and expanded hosted push CI verified | [M5 feature-branch run passed](https://github.com/SumalyaPatnala/streaming-network-threat-detection-mlops/actions/runs/40007333874), including Helm/Terraform and Trivy; PR event and GHCR release/provenance remain unverified |
 | Streaming ingestion | Implemented for normalized HTTP events; external sources not verified | Versioned event envelope, replay fixtures, idempotency, bounded batch; no raw Zeek parser or broker |
 | Identity and tenant isolation | Signed-token app-level end-to-end verified; deployed Helm API has no IdP configured | OIDC signature/claims, tenant-scoped SQLite, triage, quotas, negative cross-tenant test; no live or deployed IdP |
 | Splunk | Prediction and triage export verified against local HTTPS mock | Actual sink, simulated HEC 503/retry, evidence/correlation/model linkage, SPL and dashboard definitions; no live instance/credentials |
@@ -49,6 +49,8 @@ resources or Terraform applies are authorized.
   Grafana dashboard. These services were stopped after verification.
 - GCP Terraform formatting and validation are local-only; no plan, apply, cloud
   account access, or billable resource was used.
+- The pushed M5 commit passed the hosted GitHub Actions workflow:
+  [run 40007333874](https://github.com/SumalyaPatnala/streaming-network-threat-detection-mlops/actions/runs/40007333874).
 - Reproduction and evidence boundaries: [M5 demo guide](milestone-5-end-to-end-demo.md).
 
 ## Ordered milestones
