@@ -1,0 +1,60 @@
+replicaCount: 1
+deploymentEnvironment: development
+
+image:
+  repository: streaming-threat-api
+  tag: local
+  digest: ""
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+namespaceOverride: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  gcpServiceAccount: ""
+
+service:
+  type: ClusterIP
+  port: 8000
+
+model:
+  id: ""
+  existingClaim: ""
+
+eventStore:
+  persistence:
+    enabled: false
+    existingClaim: ""
+    storageClassName: ""
+    size: 1Gi
+
+identity:
+  oidc:
+    enabled: false
+    issuer: ""
+    audience: ""
+    jwksUrl: ""
+
+splunk:
+  enabled: false
+  hecUrl: ""
+  index: ""
+  existingSecret: ""
+  tokenKey: token
+
+drift:
+  enabled: false
+  referenceConfigMap: ""
+  referenceKey: reference.json
+  threshold: "0.2"
+  windowSize: "100"
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi

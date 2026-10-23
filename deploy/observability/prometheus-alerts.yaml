@@ -1,0 +1,38 @@
+groups:
+  - name: threat-detection-api
+    rules:
+      - alert: ThreatDetectionInferenceErrors
+        expr: |
+          sum(rate(threat_detection_inference_requests_total{outcome="error"}[5m]))
+          /
+          clamp_min(sum(rate(threat_detection_inference_requests_total[5m])), 1)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Inference error ratio is above 5% for five minutes
+
+      - alert: ThreatDetectionIngestionErrors
+        expr: increase(threat_detection_ingestion_errors_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: One or more network events failed ingestion
+
+      - alert: ThreatDetectionFeatureDrift
+        expr: max(threat_detection_feature_drift_alert) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: A configured feature drift window exceeded its PSI threshold
+
+      - alert: ThreatDetectionSplunkDeliveryErrors
+        expr: increase(threat_detection_splunk_delivery_errors_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Splunk HEC delivery failed; retryable events remain in the outbox

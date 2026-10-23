@@ -13,6 +13,7 @@ An ADR status records decision state, not implementation completion.
 | [0002](0002-no-nodejs-runtime.md) | Do not add Node.js without an application requirement | Accepted | No Node.js runtime |
 | [0003](0003-multi-tenancy-security-gate.md) | Multi-tenancy requires identity and isolation gates | Proposed | No authentication, authorization, or tenancy implemented |
 | [0004](0004-terraform-state-and-environments.md) | Terraform state/environment design principles | Proposed | Terraform and cloud resources not implemented |
+| [0005](0005-local-kubernetes-model-and-gitops.md) | Local Kubernetes model mount and production artifact boundary | Accepted locally; production direction proposed | Kind lab only; production distribution and GitOps not implemented |
 
 New ADRs require design-review linkage where appropriate. See
 [`../design-reviews/`](../design-reviews/).

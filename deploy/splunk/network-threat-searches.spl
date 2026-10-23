@@ -1,0 +1,16 @@
+index=security source=network-threat-detection sourcetype=_json kind=model_prediction
+| sort 0 - _time
+| table _time tenant_id event_id class_label prediction model_score score_semantics model_id evidence_refs response_recommendation
+
+index=security source=network-threat-detection sourcetype=_json kind=incident_triage
+| sort 0 - _time
+| table _time tenant_id event_id decision reviewed_by model_id prediction evidence_refs
+
+index=security source=network-threat-detection sourcetype=_json kind=model_prediction prediction=1
+| stats latest(_time) as predicted_at latest(class_label) as class_label latest(model_score) as model_score latest(model_id) as model_id values(evidence_refs) as evidence_refs by tenant_id event_id
+| join type=left tenant_id event_id [
+    search index=security source=network-threat-detection sourcetype=_json kind=incident_triage
+    | stats latest(decision) as triage_decision latest(reviewed_by) as reviewed_by by tenant_id event_id
+]
+| where isnull(triage_decision)
+| sort 0 - predicted_at

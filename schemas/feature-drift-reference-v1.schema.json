@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://streaming-network-threat-detection-mlops/schemas/feature-drift-reference-v1.schema.json",
+  "title": "Feature Drift Reference",
+  "description": "Operator-validated feature distributions derived from an approved reference population; not bundled with fabricated baseline values.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "features"],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "features": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "boundaries", "probabilities"],
+            "properties": {
+              "kind": {
+                "const": "numeric"
+              },
+              "boundaries": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                }
+              },
+              "probabilities": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "categories", "probabilities"],
+            "properties": {
+              "kind": {
+                "const": "categorical"
+              },
+              "categories": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                  "type": "string"
+                }
+              },
+              "probabilities": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "number",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

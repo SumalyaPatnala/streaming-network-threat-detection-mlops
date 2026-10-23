@@ -1,0 +1,16 @@
+{{- if and .Values.eventStore.persistence.enabled (not .Values.eventStore.persistence.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "threat-detection.fullname" . }}-events
+  namespace: {{ include "threat-detection.namespace" . }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  {{- if .Values.eventStore.persistence.storageClassName }}
+  storageClassName: {{ .Values.eventStore.persistence.storageClassName | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.eventStore.persistence.size }}
+{{- end }}

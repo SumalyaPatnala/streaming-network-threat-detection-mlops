@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: network-threat-api-config
+  namespace: threat-detection-lab
+data:
+  MODEL_ID: m-e938dbe02eac44609ef11145e7eaa535
+  MODEL_PATH: /models/xgboost
+  MODEL_SCHEMA_PATH: /app/schemas/network-flow-model-input-v1.schema.json

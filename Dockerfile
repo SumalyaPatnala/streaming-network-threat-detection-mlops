@@ -26,6 +26,8 @@ RUN uv sync --frozen --no-dev --no-install-project --no-install-package nvidia-n
 
 COPY src/threat_detection ./src/threat_detection
 COPY schemas/network-flow-model-input-v1.schema.json ./schemas/network-flow-model-input-v1.schema.json
+COPY schemas/network-security-event-v1.schema.json ./schemas/network-security-event-v1.schema.json
+COPY schemas/feature-drift-reference-v1.schema.json ./schemas/feature-drift-reference-v1.schema.json
 
 USER app
 EXPOSE 8000

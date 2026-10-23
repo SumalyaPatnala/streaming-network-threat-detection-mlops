@@ -1,0 +1,161 @@
+{{- if and .Values.identity.oidc.enabled (or (not .Values.identity.oidc.issuer) (not .Values.identity.oidc.audience) (not .Values.identity.oidc.jwksUrl)) }}
+{{- fail "identity.oidc issuer, audience, and jwksUrl are required when OIDC is enabled" }}
+{{- end }}
+{{- if and .Values.splunk.enabled (or (not .Values.splunk.hecUrl) (not .Values.splunk.existingSecret)) }}
+{{- fail "splunk.hecUrl and splunk.existingSecret are required when Splunk is enabled" }}
+{{- end }}
+{{- if ne (int .Values.replicaCount) 1 }}
+{{- fail "replicaCount must remain 1 while the event store uses SQLite" }}
+{{- end }}
+{{- if and (not .Values.serviceAccount.create) (not .Values.serviceAccount.name) }}
+{{- fail "serviceAccount.name is required when serviceAccount.create is false" }}
+{{- end }}
+{{- if and .Values.drift.enabled (not .Values.drift.referenceConfigMap) }}
+{{- fail "drift.referenceConfigMap is required when drift monitoring is enabled" }}
+{{- end }}
+{{- if and (eq .Values.deploymentEnvironment "production") (not (regexMatch "^sha256:[a-f0-9]{64}$" .Values.image.digest)) }}
+{{- fail "production image.digest must be a verified sha256 digest" }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "threat-detection.fullname" . }}
+  namespace: {{ include "threat-detection.namespace" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "threat-detection.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "threat-detection.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "threat-detection.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      serviceAccountName: {{ default (include "threat-detection.fullname" .) .Values.serviceAccount.name }}
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: api
+          image: {{ include "threat-detection.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
+          env:
+            - name: MODEL_ID
+              value: {{ required "model.id is required" .Values.model.id | quote }}
+            - name: MODEL_PATH
+              value: /models/xgboost
+            - name: MODEL_SCHEMA_PATH
+              value: /app/schemas/network-flow-model-input-v1.schema.json
+            - name: EVENT_STORE_PATH
+              value: /var/lib/threat-detection/events.sqlite3
+            {{- if .Values.identity.oidc.enabled }}
+            - name: OIDC_ISSUER
+              value: {{ .Values.identity.oidc.issuer | quote }}
+            - name: OIDC_AUDIENCE
+              value: {{ .Values.identity.oidc.audience | quote }}
+            - name: OIDC_JWKS_URL
+              value: {{ .Values.identity.oidc.jwksUrl | quote }}
+            {{- end }}
+            {{- if .Values.splunk.enabled }}
+            - name: SPLUNK_HEC_URL
+              value: {{ .Values.splunk.hecUrl | quote }}
+            - name: SPLUNK_INDEX
+              value: {{ .Values.splunk.index | quote }}
+            - name: SPLUNK_HEC_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.splunk.existingSecret }}
+                  key: {{ .Values.splunk.tokenKey }}
+            {{- end }}
+            {{- if .Values.drift.enabled }}
+            - name: DRIFT_REFERENCE_PATH
+              value: /etc/threat-detection/drift/{{ .Values.drift.referenceKey }}
+            - name: DRIFT_PSI_THRESHOLD
+              value: {{ .Values.drift.threshold | quote }}
+            - name: DRIFT_WINDOW_SIZE
+              value: {{ .Values.drift.windowSize | quote }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          startupProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          volumeMounts:
+            - name: model-artifact
+              mountPath: /models/xgboost
+              readOnly: true
+            - name: event-store
+              mountPath: /var/lib/threat-detection
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.drift.enabled }}
+            - name: drift-reference
+              mountPath: /etc/threat-detection/drift
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: model-artifact
+          persistentVolumeClaim:
+            claimName: {{ required "model.existingClaim must reference a trusted model artifact volume" .Values.model.existingClaim }}
+            readOnly: true
+        - name: event-store
+          {{- if .Values.eventStore.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ default (printf "%s-events" (include "threat-detection.fullname" .)) .Values.eventStore.persistence.existingClaim }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.drift.enabled }}
+        - name: drift-reference
+          configMap:
+            name: {{ .Values.drift.referenceConfigMap }}
+            items:
+              - key: {{ .Values.drift.referenceKey }}
+                path: {{ .Values.drift.referenceKey }}
+        {{- end }}

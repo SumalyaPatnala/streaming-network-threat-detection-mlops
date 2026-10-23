@@ -1,0 +1,52 @@
+<dashboard version="1.1">
+  <label>Network Threat Detection</label>
+  <description>Model observations and human triage events. Model scores are uncalibrated.</description>
+  <fieldset submitButton="false">
+    <input type="text" token="index">
+      <label>Splunk index</label>
+      <default>security</default>
+    </input>
+    <input type="time" token="time">
+      <label>Time range</label>
+      <default>
+        <earliest>-24h@h</earliest>
+        <latest>now</latest>
+      </default>
+    </input>
+  </fieldset>
+  <row>
+    <panel>
+      <title>Predictions by class</title>
+      <chart>
+        <search>
+          <query>index=$index$ source=network-threat-detection sourcetype=_json kind=model_prediction | stats count by class_label</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+        <option name="charting.chart">bar</option>
+      </chart>
+    </panel>
+    <panel>
+      <title>Recent model predictions</title>
+      <table>
+        <search>
+          <query>index=$index$ source=network-threat-detection sourcetype=_json kind=model_prediction | sort 0 - _time | table _time tenant_id event_id class_label model_score score_semantics model_id evidence_refs response_recommendation</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </table>
+    </panel>
+  </row>
+  <row>
+    <panel>
+      <title>Human investigation decisions</title>
+      <table>
+        <search>
+          <query>index=$index$ source=network-threat-detection sourcetype=_json kind=incident_triage | sort 0 - _time | table _time tenant_id event_id decision reviewed_by model_id prediction evidence_refs</query>
+          <earliest>$time.earliest$</earliest>
+          <latest>$time.latest$</latest>
+        </search>
+      </table>
+    </panel>
+  </row>
+</dashboard>

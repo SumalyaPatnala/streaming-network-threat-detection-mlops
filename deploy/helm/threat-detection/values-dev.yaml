@@ -1,0 +1,12 @@
+image:
+  repository: streaming-threat-api
+  tag: local
+  pullPolicy: Never
+
+model:
+  id: m-e938dbe02eac44609ef11145e7eaa535
+  existingClaim: network-threat-model
+
+eventStore:
+  persistence:
+    enabled: false

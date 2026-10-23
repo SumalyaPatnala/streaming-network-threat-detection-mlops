@@ -26,8 +26,9 @@ service only after measured scaling, security, reliability, or ownership needs j
   requirement has been measured; this adds network, deployment, and incident complexity.
 - Add Node.js as a gateway/application runtime: rejected because no genuine
   Node-specific application need exists and it would duplicate the current Python API.
-- Adopt Kubernetes now: deferred until CI/CD, identity, observability, and capacity
-  requirements have been established.
+- Adopt production Kubernetes now: deferred until CI/CD, identity, observability,
+  and capacity requirements have been established. A separate local Kind learning
+  lab does not change this production decision.
 
 ## Consequences and follow-up
 

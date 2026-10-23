@@ -1,23 +1,27 @@
 # Platform Roadmap and Acceptance Evidence
 
-This roadmap is an engineering plan, not a statement that future capabilities exist.
-It prioritizes completion of the current CI/CD milestone before additional
-infrastructure. No paid cloud resources, Terraform applies, or deployments are
+This roadmap distinguishes application-level implementation from external validation
+and deployment. No paid cloud resources, Terraform applies, or deployments are
 authorized by this plan.
 
 ## Status summary
 
-| Area | Status on 2026-10-22 | Evidence / boundary |
+| Area | Status on 2026-10-23 | Evidence / boundary |
 |---|---|---|
 | Training and evaluation | Implemented; test evaluation gated | Milestone 1 report, readiness report, governance tests |
 | FastAPI and Docker | Implemented and locally verified | Milestone 2 report; real saved-model container smoke |
-| CI/CD | **Hosted CI verified; manual release unexecuted** | Main-push CI succeeded; GHCR publication/provenance intentionally not run |
-| IaC/Terraform | Planned | No Terraform configuration/state or cloud resources |
+| CI/CD | Existing hosted CI verified; expanded gates await hosted run | CI now validates Helm/Terraform; GHCR publication/provenance intentionally not run |
+| Streaming ingestion | Implemented for normalized HTTP events; external sources not verified | Versioned event envelope, replay fixtures, idempotency, bounded batch; no raw Zeek parser or broker |
+| Identity and tenant isolation | Application boundary implemented; production access remains blocked | OIDC JWT, tenant-scoped SQLite, triage, quotas; local tests only, no deployed IdP |
+| Splunk | Optional prediction and triage HEC export implemented; mocked only | HTTPS-only sink, persisted prediction retry state, evidence linkage, SPL searches and dashboard; triage retries may duplicate audit events; no live instance/credentials |
+| MLflow model lifecycle | Experiment/artifact tracking implemented; promotion controls incomplete | Explicit artifact selection; no registered-model stage/alias policy or automated promotion/rollback |
+| Drift and observability | Optional PSI monitor and metric/alert/dashboard definitions implemented | Synthetic drift tests only; no approved reference baseline or live Prometheus/Grafana |
+| IaC/Terraform | GCP modules/roots validated; no plan/apply | `terraform fmt` and `validate` pass with backend disabled; no project credentials/state |
 | Linux operations | Basic container controls verified locally | Non-root, read-only mount, health check, local cgroup limits; no production ops |
-| Kubernetes | Future, not implemented | No manifests, cluster, scheduling, or autoscaler validation |
-| Streaming/drift/observability | Future, not implemented | No ingestion, drift service, telemetry collection, or alert evaluation |
-| Multi-tenancy | **Not implemented; do not claim support** | No identity provider, authz, tenant context, storage policy, or isolation tests |
-| Incident response | Planned | No operational incidents, failure drills, or recovery objectives measured |
+| Local Kubernetes learning lab | Separate track; locally verified | Kind pod, endpoint, real-model inference, invalid-schema response, rollout/rollback, recreation, logs/events/resource counters; see lab report |
+| Helm | Implemented and lint/template verified; not installed | Dev/prod values and runtime security; SQLite chart blocks replicas >1 |
+| Production Kubernetes scheduling/scaling | Not implemented | No production cluster, worker scheduling, autoscaler, or artifact distribution validation |
+| Incident response | Human triage workflow implemented; operations not exercised | Analyst acknowledgment/dismissal; no disruptive automation or incident drills |
 
 ## Ordered milestones
 
@@ -34,8 +38,10 @@ cloud deployment to M3.
 
 - CI on a clean hosted runner checks Python 3.12, the committed lock, Ruff, tests,
   compilation, schema/context policy, Docker build, non-root configuration, and
-  the configured vulnerability/secret scan. The `main` push run passed; a PR event
-  and branch-protection enforcement have not been exercised.
+  the configured vulnerability/secret scan. New gates also validate existing
+  Kubernetes manifests, Helm charts, and no-backend Terraform configuration. The
+  prior `main` push run passed; the updated workflow and a PR event have not yet
+  been exercised on GitHub.
 - CI never requires private dataset/model/MLflow files, trains models, or evaluates
   the final test set. It does not run a real-model inference test.
 - CI and manual release actions are pinned to full commit SHAs. The manual-only
@@ -65,13 +71,15 @@ cloud deployment to M3.
 commands, and scan step outcome. No SBOM, published image digest, or release
 attestation exists yet. Clearly mark unexercised permissions and triggers.
 
-### M4 — Telemetry contract and generalization evidence
+### M4 — Telemetry contract and generalization evidence (partially implemented)
 
-Define and test a versioned Zeek-to-v1 normalizer without silently accepting raw logs
-at the prediction API. Resolve `conn.log` direction, type normalization, timestamps,
-and DNS/TLS/HTTP/weird joins by connection UID. Obtain a new independent collection
-with time/session/device/scenario identifiers and documented permissions before
-claiming operational generalization.
+The versioned network-event envelope, normalized HTTP ingest endpoint, synthetic
+replay fixtures, idempotency, and evidence references are implemented and tested.
+The API still does not accept raw Zeek logs. Define and test a Zeek-to-v1 normalizer
+including `conn.log` direction, type normalization, timestamps, and DNS/TLS/HTTP/
+weird joins by connection UID. Obtain a new independent collection with time/session/
+device/scenario identifiers and documented permissions before claiming operational
+generalization.
 
 **Acceptance criteria:** golden fixture tests for each protocol-log mapping and
 missing-field semantics; no target/identifier leakage; malformed and late/missing
@@ -83,11 +91,12 @@ closed to tuning.
 fixtures, join-quality report, evaluation protocol, and independently generated
 validation results with limitations.
 
-### M5 — Identity and authorization design (prerequisite to shared access)
+### M5 — Identity and authorization (application implementation; deployment gate)
 
-Select an identity provider and threat model through ADR/design review. Prototype
-authentication and authorization before any shared tenant launch. Until this phase
-passes all gates, serve only within a single trusted operator boundary.
+Generic OIDC JWT validation, role checks, tenant-scoped records, quotas, investigation
+access, and cross-tenant negative tests are implemented in the application. A real
+identity provider, threat model review, deployed ingress/token policy, and storage
+lifecycle controls remain prerequisites to shared production access.
 
 **Acceptance criteria**
 
@@ -103,16 +112,17 @@ passes all gates, serve only within a single trusted operator boundary.
    identifiers. Security review signs off on isolation, deletion, retention, and
    administrative access controls.
 
-**Portfolio evidence:** threat model, identity/authz ADR, policy tests including
-negative cases, security review record, and test output. Do not label the system
-multi-tenant until these gates pass.
+**Portfolio evidence:** identity/authz ADR, application tests, deployed-policy test,
+security review record, and test output. The present implementation demonstrates
+tenant-aware application isolation, not production-ready shared tenancy.
 
-### M6 — Reliability, observability, drift, and incident operations
+### M6 — Reliability, observability, drift, and incident operations (partially implemented)
 
-Start with platform instrumentation and runbooks for the single serving service.
-Add drift monitoring only after an approved feature/label feedback source and
-tenant-safe aggregation policy exist. Add a separate service only if operational
-ownership or scaling needs warrant it.
+Inference/ingestion metrics, JSON request logs, correlation IDs, sample alert rules,
+a Grafana dashboard definition, configurable PSI, and analyst triage are implemented.
+No alert backend, route, validated operational reference population, load test,
+production runbook exercise, or incident drill has been verified. Add a separate
+service only if operational ownership or scaling needs warrant it.
 
 **Acceptance criteria (proposed targets requiring baseline approval)**
 
@@ -135,12 +145,13 @@ ownership or scaling needs warrant it.
 test report, failure-injection record, incident runbooks, recovery evidence, and
 reviewed SLO/error-budget decision.
 
-### M7 — Terraform and environment foundations (approval-gated; no apply by default)
+### M7 — Terraform and environment foundations (GCP validated; no apply)
 
-Implement reusable modules only after M3, identity design, threat model, provider
-choice, and cost/security review. Keep provider-specific implementation deferred
-until justified. The initial Terraform milestone may validate and plan against
-non-paid fixtures, but must not create billable resources without explicit approval.
+Reusable GCP network/platform modules and distinct dev/prod roots are implemented.
+`terraform fmt` and `terraform validate` pass using Terraform 1.17.0 with backend
+initialization disabled. No project credentials or approved state bucket were
+available, so no plan was generated and no resources were applied. Cost/security
+review, state bucket, and deployment authorization remain required.
 
 **Design principles**
 
@@ -176,7 +187,11 @@ no-apply validation log.
 ### M8 — Kubernetes scheduling and scaling (only if justified and approved)
 
 Retain Docker/local operation until availability, rollout, or scaling requirements
-justify Kubernetes overhead. No cluster is part of the current implementation.
+justify production Kubernetes overhead. The separate local Kind learning lab does
+not satisfy this milestone and does not authorize production deployment.
+The new Helm chart passes lint and template rendering for development and
+production-value files. It is not installed, and it enforces one replica because
+event idempotency/triage currently use SQLite.
 
 **Acceptance criteria**
 
@@ -196,6 +211,23 @@ node-drain tests, autoscaling timeline, cost envelope, and rollback runbook.
 “Node” in this roadmap means Kubernetes worker node. Node.js is not planned: the
 application and serving stack are Python-native, and no genuine Node.js requirement
 has been identified.
+
+### Separate infrastructure-learning track — Local Kubernetes lab
+
+This track is intentionally separate from M4 and the ordered production/platform
+milestones. It uses one local Kind cluster, the existing API image, and the
+explicitly selected local XGBoost model. It does not retrain, publish an image,
+provision cloud resources, or claim production Kubernetes readiness. See the
+[local lab guide](local-kubernetes-lab.md), [ADR 0005](adr/0005-local-kubernetes-model-and-gitops.md),
+and [design review](design-reviews/local-kubernetes-lab.md).
+
+**Acceptance evidence:** automated manifest policy tests; restricted pod security,
+no service-account token/RBAC, bounded resources and probes; real-model response
+from a ready pod; invalid schema rejection; Service endpoint; successful rollout,
+injected failed rollout and rollback; controller pod recreation; actual logs,
+events, and resource counters. The hostPath-backed model PV is local-only and is
+not a production artifact-distribution mechanism. Production artifact delivery
+and GitOps remain undecided/planned as detailed in ADR 0005.
 
 ## Engineering evidence across milestones
 

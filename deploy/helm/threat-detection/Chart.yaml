@@ -1,0 +1,6 @@
+apiVersion: v2
+name: threat-detection
+description: Versioned network-flow inference API with optional tenant OIDC and Splunk HEC
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

@@ -1,23 +1,24 @@
 # ADR 0004: Terraform State and Environment Isolation Principles
 
-- **Status:** Proposed; provider/backend selection and paid provisioning require approval
-- **Date:** 2026-10-22
-- **Decision owner:** Not assigned
+- **Status:** GCP selected for no-apply configuration; provisioning remains unapproved
+- **Date:** 2026-10-23
+- **Decision owner:** Project owner selected GCP for this implementation
 - **Related review:** [Platform scope review](../design-reviews/platform-scope.md)
 
 ## Context
 
-Terraform, remote state, and environment isolation are future platform requirements.
-No cloud provider, account/project layout, backend, or cost envelope has been selected.
-The repository has no Terraform code and no infrastructure has been provisioned.
+Terraform, remote state, and environment isolation are platform requirements.
+The project owner selected GCP for a no-apply Terraform configuration. No
+GCP project, state bucket, billing/cost envelope, or deployment identity has
+been authorized or configured. No infrastructure has been provisioned.
 
 ## Proposed decision
 
-When M3 CI/CD and the required security/design reviews are complete, implement
-versioned reusable Terraform modules and separate environment roots and identities.
-Use an approved remote state backend with encryption, locking, versioning/recovery,
-least privilege, and audit. Pin provider and module versions. CI may validate/plan;
-apply requires protected approval and explicit owner authorization.
+Implement reusable GCP Terraform modules and separate development/production roots.
+Use an already approved GCS state bucket with versioning, locking, least privilege,
+and audit. Pin provider versions. CI may validate; a plan requires approved project
+access and review. Apply requires protected approval and explicit owner
+authorization. The current configuration is not evidence of deployed resources.
 
 Do not commit state, credentials, secret-bearing plans, or unreviewed provider
 credentials. A no-apply validation milestone may use mocks/local providers. No paid
@@ -32,6 +33,10 @@ resource is created by accepting this ADR.
 
 ## Consequences and acceptance gate
 
-Provider-specific module design and operational support remain open. Acceptance
-requires state threat model, backend/provider choice, cost/security review, state
-access tests, locking and recovery evidence, and owner approval before any apply.
+The no-apply provider-specific configuration is in
+`infra/terraform/`; it validates locally without cloud credentials by disabling
+backend initialization. Model artifacts are stored in a private versioned bucket,
+but the serving process still uses an explicitly mounted model volume. Acceptance
+of deployment requires a state threat model, approved backend bucket, cost/security
+review, state access tests, locking and recovery evidence, a reviewed plan, and
+explicit owner approval before any apply.

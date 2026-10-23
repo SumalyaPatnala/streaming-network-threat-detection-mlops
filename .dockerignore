@@ -16,6 +16,8 @@ __pycache__
 *.pem
 *.key
 *.secret
+*.sqlite
+*.sqlite3
 credentials*
 *credential*
 secrets/

@@ -24,12 +24,16 @@ REQUIRED_DOCKERIGNORE_PATTERNS = {
     "mlruns/",
     "models/",
     "secrets/",
+    "*.sqlite",
+    "*.sqlite3",
 }
 ALLOWED_COPY_SOURCES = {
     "pyproject.toml",
     "uv.lock",
     "src/threat_detection",
     "schemas/network-flow-model-input-v1.schema.json",
+    "schemas/network-security-event-v1.schema.json",
+    "schemas/feature-drift-reference-v1.schema.json",
 }
 
 

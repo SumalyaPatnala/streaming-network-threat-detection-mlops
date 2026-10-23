@@ -1,0 +1,2 @@
+bucket = "replace-with-precreated-private-terraform-state-bucket"
+prefix = "streaming-network-threat-detection/dev"

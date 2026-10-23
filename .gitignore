@@ -25,6 +25,10 @@ models/
 
 # Test/build outputs
 .pytest_cache/
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
 build/
 dist/
 *.egg-info/

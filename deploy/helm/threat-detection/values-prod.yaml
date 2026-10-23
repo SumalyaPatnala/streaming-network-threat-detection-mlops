@@ -1,0 +1,46 @@
+replicaCount: 1
+deploymentEnvironment: production
+
+image:
+  repository: ghcr.io/sumalyapatnala/streaming-network-threat-detection-mlops
+  tag: replace-with-verified-release
+  digest: ""
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+  name: network-threat-api
+  gcpServiceAccount: replace-with-terraform-output-email
+
+model:
+  id: replace-with-approved-model-id
+  existingClaim: network-threat-model-artifact
+
+eventStore:
+  persistence:
+    enabled: true
+    existingClaim: ""
+    storageClassName: ""
+    size: 10Gi
+
+identity:
+  oidc:
+    enabled: true
+    issuer: https://identity.example.invalid/
+    audience: streaming-threat-api
+    jwksUrl: https://identity.example.invalid/.well-known/jwks.json
+
+splunk:
+  enabled: true
+  hecUrl: https://splunk.example.invalid:8088/services/collector/event
+  index: network_security
+  existingSecret: network-threat-api-splunk
+  tokenKey: token
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: "2"
+    memory: 2Gi
