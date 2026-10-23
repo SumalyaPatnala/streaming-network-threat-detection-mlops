@@ -10,7 +10,7 @@ authorized by this plan.
 |---|---|---|
 | Training and evaluation | Implemented; test evaluation gated | Milestone 1 report, readiness report, governance tests |
 | FastAPI and Docker | Implemented and locally verified | Milestone 2 report; real saved-model container smoke |
-| CI/CD | Existing hosted CI verified; expanded gates await hosted run | CI now validates Helm/Terraform; GHCR publication/provenance intentionally not run |
+| CI/CD | Existing and expanded hosted push CI verified | [Expanded feature-branch run passed](https://github.com/SumalyaPatnala/streaming-network-threat-detection-mlops/actions/runs/39908441843), including Helm/Terraform and Trivy; PR event and GHCR release/provenance remain unverified |
 | Streaming ingestion | Implemented for normalized HTTP events; external sources not verified | Versioned event envelope, replay fixtures, idempotency, bounded batch; no raw Zeek parser or broker |
 | Identity and tenant isolation | Application boundary implemented; production access remains blocked | OIDC JWT, tenant-scoped SQLite, triage, quotas; local tests only, no deployed IdP |
 | Splunk | Optional prediction and triage HEC export implemented; mocked only | HTTPS-only sink, persisted prediction retry state, evidence linkage, SPL searches and dashboard; triage retries may duplicate audit events; no live instance/credentials |
@@ -40,8 +40,9 @@ cloud deployment to M3.
   compilation, schema/context policy, Docker build, non-root configuration, and
   the configured vulnerability/secret scan. New gates also validate existing
   Kubernetes manifests, Helm charts, and no-backend Terraform configuration. The
-  prior `main` push run passed; the updated workflow and a PR event have not yet
-  been exercised on GitHub.
+  prior `main` push run passed; the expanded workflow also passed on the pushed
+  feature branch ([run 39908441843](https://github.com/SumalyaPatnala/streaming-network-threat-detection-mlops/actions/runs/39908441843)).
+  A PR event has not yet been exercised on GitHub.
 - CI never requires private dataset/model/MLflow files, trains models, or evaluates
   the final test set. It does not run a real-model inference test.
 - CI and manual release actions are pinned to full commit SHAs. The manual-only
@@ -54,9 +55,10 @@ cloud deployment to M3.
 **Acceptance criteria**
 
 1. A GitHub-hosted `main` push run passes lock, lint, test, compile, schema,
-   context, image, non-root/content, and Trivy checks. This is verified by the
-   run linked in the Milestone 3 report. Pull-request trigger execution and
-   branch-protection enforcement remain unverified.
+   context, image, non-root/content, and Trivy checks. The existing run is linked
+   in the Milestone 3 report; the expanded workflow also passed on the feature
+   branch as linked above. Pull-request trigger execution and branch-protection
+   enforcement remain unverified.
 2. CI operates without dataset/model/MLflow/cloud/Kubernetes dependencies, and no
    training or final-test scoring occurs in the job.
 3. The manual release path is implemented with version validation, image scanning,

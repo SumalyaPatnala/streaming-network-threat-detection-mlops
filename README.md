@@ -12,7 +12,7 @@ holdout**. Do not use it for further model selection or tuning.
 | Reproducible training, validation, MLflow, input contract | Implemented and locally verified |
 | MLflow registry promotion and model rollback controls | Partially implemented: experiment/artifact tracking exists and operators explicitly select an artifact; no registry-stage promotion policy or automated model rollback controller |
 | FastAPI inference and non-root Docker image | Implemented and locally verified with a saved model |
-| GitHub Actions CI and manually triggered GHCR release | CI passed on GitHub; manual GHCR release is implemented but intentionally unexecuted. See the [Milestone 3 report](reports/milestone-3-report.md) |
+| GitHub Actions CI and manually triggered GHCR release | Expanded CI passed on the pushed feature branch; manual GHCR release is implemented but intentionally unexecuted. See [the latest CI run](https://github.com/SumalyaPatnala/streaming-network-threat-detection-mlops/actions/runs/39908441843) and the [Milestone 3 report](reports/milestone-3-report.md) |
 | HTTP event ingestion, schema, replay, duplicate/retry handling | Implemented and locally tested for already-normalized records; raw Zeek parsing, durable broker ingestion, and live telemetry are not implemented |
 | OIDC tenant identity and tenant-scoped investigations | Implemented and tested in application code; real IdP/deployed-policy verification, encryption, retention, and multi-replica state are outstanding |
 | Splunk HEC prediction and triage export | Implemented behind optional HTTPS configuration and Secret-backed token; mocked tests pass; no live Splunk instance or credentials were used |
@@ -34,7 +34,7 @@ and [design review records](docs/design-reviews/).
 |---|---|---|---|
 | Containerized ML services and real-time inference | [`Dockerfile`](Dockerfile), [`src/threat_detection/api.py`](src/threat_detection/api.py), [`tests/test_api.py`](tests/test_api.py) | Local saved-model Docker inference was recorded in the Milestone 2 and local Kubernetes reports; latest image build and non-root import smoke pass | Implemented and verified locally |
 | Streaming network-event ingestion | [`schemas/network-security-event-v1.schema.json`](schemas/network-security-event-v1.schema.json), [`src/threat_detection/event_store.py`](src/threat_detection/event_store.py), [`src/threat_detection/replay.py`](src/threat_detection/replay.py) | Versioned normalized records, idempotency/conflict tests, auth tests, and synthetic replay fixtures pass; raw Zeek parsing and durable brokers are absent | Implemented and verified for normalized HTTP events |
-| Automation, CI/CD, image build, release controls | [`.github/workflows/ci.yml`](.github/workflows/ci.yml), [`.github/workflows/release.yml`](.github/workflows/release.yml), [`scripts/`](scripts/) | Previous hosted CI passed; local lint/tests/build pass. The changed workflow has not run on GitHub, and the manual image release was not triggered | Partially implemented |
+| Automation, CI/CD, image build, release controls | [`.github/workflows/ci.yml`](.github/workflows/ci.yml), [`.github/workflows/release.yml`](.github/workflows/release.yml), [`scripts/`](scripts/) | [Expanded hosted push CI passed](https://github.com/SumalyaPatnala/streaming-network-threat-detection-mlops/actions/runs/39908441843), including tests, Helm/Terraform, image build, Trivy vulnerability/secret scan; manual image release was not triggered | Implemented and verified for CI; release unverified |
 | Drift monitoring, Prometheus/Grafana, operational alerts | [`src/threat_detection/drift.py`](src/threat_detection/drift.py), [`src/threat_detection/observability.py`](src/threat_detection/observability.py), [`deploy/observability/`](deploy/observability/) | PSI, metric, and alert-definition tests pass against synthetic inputs; no approved reference population, deployed Prometheus/Grafana, or live alert route | Implemented; external monitoring unverified |
 | Splunk predictions, investigation events, and dashboards | [`src/threat_detection/splunk.py`](src/threat_detection/splunk.py), [`deploy/splunk/`](deploy/splunk/), [`tests/test_ingestion.py`](tests/test_ingestion.py) | HEC payload and failure behavior are mocked and tested; Simple XML parses. No live Splunk search, import, or alert route was tested | Implemented but not externally verified |
 | MLflow experiments, artifacts, evaluation, promotion, and rollback | Existing [`scripts/train_baselines.py`](scripts/train_baselines.py), [`src/threat_detection/api.py`](src/threat_detection/api.py), and saved artifact selection | Existing experiment/artifact workflow is reused; inference is tied to an explicit model artifact. There is no registered-model promotion policy or automated model rollback | Partially implemented |
@@ -63,9 +63,10 @@ Starlette/httpx deprecation warning; Ruff, `uv lock --check`, and Python
 compilation passed. Helm lint/rendering passed for development and production
 values. Terraform 1.17.0 `fmt -check` and `validate` passed for both environments.
 The Docker image rebuilt and imported the application as non-root; JSON, YAML,
-XML, Kubernetes manifest, and Docker-context checks passed. These local results
-do not constitute live Splunk, hosted CI, cluster deployment, or cloud
-infrastructure verification.
+XML, Kubernetes manifest, and Docker-context checks passed. The
+[expanded hosted CI run](https://github.com/SumalyaPatnala/streaming-network-threat-detection-mlops/actions/runs/39908441843)
+also passed. These checks do not constitute live Splunk, an updated cluster
+deployment, or cloud infrastructure verification.
 
 ### CI/CD workflows
 
